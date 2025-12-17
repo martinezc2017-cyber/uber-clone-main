@@ -1,6 +1,6 @@
-import {Driver, MarkerData} from "@/types/type";
+import { Driver, MarkerData } from "@/types/type";
 
-const directionsAPI = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
+const openRouteApiKey = process.env.EXPO_PUBLIC_OPENROUTE_API_KEY;
 
 export const generateMarkersFromData = ({
                                             data,
@@ -58,8 +58,8 @@ export const calculateRegion = ({
     const minLng = Math.min(userLongitude, destinationLongitude);
     const maxLng = Math.max(userLongitude, destinationLongitude);
 
-    const latitudeDelta = (maxLat - minLat) * 1.3; // Adding some padding
-    const longitudeDelta = (maxLng - minLng) * 1.3; // Adding some padding
+    const latitudeDelta = Math.max((maxLat - minLat) * 1.5, 0.02); // Adding more padding and minimum zoom
+    const longitudeDelta = Math.max((maxLng - minLng) * 1.5, 0.02); // Adding more padding and minimum zoom
 
     const latitude = (userLatitude + destinationLatitude) / 2;
     const longitude = (userLongitude + destinationLongitude) / 2;
@@ -70,6 +70,51 @@ export const calculateRegion = ({
         latitudeDelta,
         longitudeDelta,
     };
+};
+
+// Calculate distance between two coordinates in kilometers using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
+type LatLng = { latitude: number; longitude: number };
+
+const getRouteMetrics = async (
+    origin: LatLng,
+    destination: LatLng
+): Promise<{ distanceKm: number; durationMin: number } | null> => {
+    if (!openRouteApiKey) return null;
+
+    try {
+        const url = `https://api.openrouteservice.org/v2/directions/driving-car?start=${origin.longitude},${origin.latitude}&end=${destination.longitude},${destination.latitude}`;
+        const res = await fetch(url, {
+            headers: {
+                'Authorization': openRouteApiKey,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8'
+            }
+        });
+        const json = await res.json();
+        const summary = json?.features?.[0]?.properties?.summary;
+
+        if (!summary) return null;
+
+        const distanceKm = (summary.distance ?? 0) / 1000;
+        const durationMin = (summary.duration ?? 0) / 60;
+
+        return { distanceKm, durationMin };
+    } catch (error) {
+        console.error("OpenRouteService metrics error:", error);
+        return null;
+    }
 };
 
 export const calculateDriverTimes = async ({
@@ -94,24 +139,48 @@ export const calculateDriverTimes = async ({
         return;
 
     try {
+        // Uber pricing structure for Arizona
+        const BASE_FARE = 2.50;  // Base fare
+        const COST_PER_MILE = 1.15;  // Cost per mile (similar to UberX)
+        const COST_PER_MINUTE = 0.22;  // Cost per minute
+        const SERVICE_FEE = 2.75;  // Booking fee
+        const MIN_FARE = 7.00;  // Minimum fare
+
+        const destinationRoute = await getRouteMetrics(
+            { latitude: userLatitude, longitude: userLongitude },
+            { latitude: destinationLatitude, longitude: destinationLongitude }
+        );
+
+        const distanceToDestinationKm =
+            destinationRoute?.distanceKm ??
+            calculateDistance(userLatitude, userLongitude, destinationLatitude, destinationLongitude);
+
+        const durationToDestinationMin =
+            destinationRoute?.durationMin ?? (distanceToDestinationKm / 50) * 60;
+
+        // Convert km to miles (1 km = 0.621371 miles)
+        const distanceInMiles = distanceToDestinationKm * 0.621371;
+
+        // Calculate price using Uber formula
+        const calculatedPrice = BASE_FARE +
+                               (distanceInMiles * COST_PER_MILE) +
+                               (durationToDestinationMin * COST_PER_MINUTE) +
+                               SERVICE_FEE;
+
+        const finalPrice = Math.max(calculatedPrice, MIN_FARE).toFixed(2);
+
         const timesPromises = markers.map(async (marker) => {
-            const responseToUser = await fetch(
-                `https://maps.googleapis.com/maps/api/directions/json?origin=${marker.latitude},${marker.longitude}&destination=${userLatitude},${userLongitude}&key=${directionsAPI}`,
-            );
-            const dataToUser = await responseToUser.json();
-            const timeToUser = dataToUser.routes[0].legs[0].duration.value; // Time in seconds
-
-            const responseToDestination = await fetch(
-                `https://maps.googleapis.com/maps/api/directions/json?origin=${userLatitude},${userLongitude}&destination=${destinationLatitude},${destinationLongitude}&key=${directionsAPI}`,
-            );
-            const dataToDestination = await responseToDestination.json();
-            const timeToDestination =
-                dataToDestination.routes[0].legs[0].duration.value; // Time in seconds
-
-            const totalTime = (timeToUser + timeToDestination) / 60; // Total time in minutes
-            const price = (totalTime * 0.5).toFixed(2); // Calculate price based on time
-
-            return {...marker, time: totalTime, price};
+            try {
+                return {
+                    ...marker,
+                    time: durationToDestinationMin,
+                    price: finalPrice,
+                    distance: distanceInMiles.toFixed(1)
+                };
+            } catch (error) {
+                console.error("Error calculating time for driver", marker.id, error);
+                return {...marker, time: 0, price: "0.00", distance: "0.0"};
+            }
         });
 
         return await Promise.all(timesPromises);

@@ -1,4 +1,4 @@
--- Uber Clone Database Schema for Neon PostgreSQL
+-- Nextryde Clone Database Schema for Neon PostgreSQL
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

@@ -4,7 +4,7 @@
 <p align="center"> <a href="https://x.com/arush_singh03" target="_blank"><img alt="" src="https://img.shields.io/badge/Twitter-1DA1F2?style=normal&logo=twitter&logoColor=white" style="vertical-align:center" /></a> <a href="https://www.instagram.com/arushsingh03/" target="_blank"><img alt="" src="https://img.shields.io/badge/Instagram-E4405F?style=normal&logo=instagram&logoColor=white" style="vertical-align:center" /></a> <a href="https://www.linkedin.com/in/arushsingh03}" target="_blank"><img alt="" src="https://img.shields.io/badge/LinkedIn-0077B5?style=normal&logo=linkedin&logoColor=white" style="vertical-align:center" /></a> </p>
 
 # Description
-The Ryde or Uber-clone is a React Native-based mobile application that mimics the core functionalities of ride-hailing services like Uber. The project focuses on building a robust and user-friendly platform that allows users to book rides, view ride details, and make payments seamlessly. The application integrates multiple technologies and services such as Clerk for authentication, Google Maps APIs for location and routing, Stripe for payment processing, NeonDB for database management, and TailwindCSS for styling.
+The Ryde or Nextryde-clone is a React Native-based mobile application that mimics the core functionalities of ride-hailing services like Nextryde. The project focuses on building a robust and user-friendly platform that allows users to book rides, view ride details, and make payments seamlessly. The application integrates multiple technologies and services such as Clerk for authentication, Google Maps APIs for location and routing, Stripe for payment processing, NeonDB for database management, and TailwindCSS for styling.
 
 # Features
 
@@ -42,16 +42,16 @@ The Ryde or Uber-clone is a React Native-based mobile application that mimics th
 - 
 # Screenshots
 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 200px;">
- <h2> Landing Page </h2><br><p align="center" ><img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Landing%20Page%201.jpg" style="width: 320px; height: 700px;">
- <img src = "https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Landing%20Page%202.jpg" style="width: 320px; height: 700px;"> 
- <img src = "https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Landing%20Page%203.jpg" style="width: 320px; height: 700px;"></p>
- <h2> Sing-Up & Home Screen Page </h2><br> <p align="center" ><img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Sign%20Up%20Interface.jpg" style="width: 320px; height: 700px;">
- <img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Home%20Page.jpg" style="width: 320px; height: 700px;">
-<img src= "https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Home%20Page%20After%20Booking%20Ride.jpg" style="width: 320px; height: 700px;"></p>
-<h2> Book Ride & Confirm Ride Page </h2><br> <p align="center" ><img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Ride%20Selection%20Page.jpg" style="width: 320px; height: 700px;"> 
-<img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Payment%20Interface%20.jpg" style="width: 320px; height: 700px;"> 
-<img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Payment%20Confirm%20Page.jpg" style="width: 320px; height: 700px;"></p> 
-<h2> Profile Page </h2><br><p align="center" ><img src="https://github.com/arushsingh03/uber-clone/blob/main/assets/screenshots/Profile%20Page.jpg" style="width: 320px; height: 700px;"></p>
+ <h2> Landing Page </h2><br><p align="center" ><img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Landing%20Page%201.jpg" style="width: 320px; height: 700px;">
+ <img src = "https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Landing%20Page%202.jpg" style="width: 320px; height: 700px;"> 
+ <img src = "https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Landing%20Page%203.jpg" style="width: 320px; height: 700px;"></p>
+ <h2> Sing-Up & Home Screen Page </h2><br> <p align="center" ><img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Sign%20Up%20Interface.jpg" style="width: 320px; height: 700px;">
+ <img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Home%20Page.jpg" style="width: 320px; height: 700px;">
+<img src= "https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Home%20Page%20After%20Booking%20Ride.jpg" style="width: 320px; height: 700px;"></p>
+<h2> Book Ride & Confirm Ride Page </h2><br> <p align="center" ><img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Ride%20Selection%20Page.jpg" style="width: 320px; height: 700px;"> 
+<img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Payment%20Interface%20.jpg" style="width: 320px; height: 700px;"> 
+<img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Payment%20Confirm%20Page.jpg" style="width: 320px; height: 700px;"></p> 
+<h2> Profile Page </h2><br><p align="center" ><img src="https://github.com/arushsingh03/Nextryde-clone/blob/main/assets/screenshots/Profile%20Page.jpg" style="width: 320px; height: 700px;"></p>
 </div>
 
 # Tech Used
@@ -64,7 +64,7 @@ Make sure you have the following installed on your machine:
 - [Node js]("https://nodejs.org/en")
 
 #### Clone the Respsitory:
-`git clone https://github.com/arushsingh03/uber-clone`
+`git clone https://github.com/arushsingh03/Nextryde-clone`
 #### Installation
 Install the project dependencies using npm:
 `npm install`
@@ -88,3 +88,4 @@ Expo Go mobile app after configuring
       
 <!-- </> with 💛 by readMD (https://readmd.itsvg.in) -->
     
+

@@ -12,12 +12,15 @@ const OAuth = () => {
   const handleGoogleSignIn = async () => {
     const result = await googleOAuth(startOAuthFlow);
 
-    if (result.code === "session_exists") {
-      Alert.alert("Success", "Session exists. Redirecting to home screen.");
+    if (result.success) {
+      Alert.alert("Success", "You have successfully signed in with Google");
       router.replace("/(root)/(tabs)/home");
+      return;
     }
 
-    Alert.alert(result.success ? "Success" : "Error", result.message);
+    // Log full error details for debugging, but only show user-friendly message
+    console.log("Google OAuth error:", result);
+    Alert.alert("Error", result.message || "An error occurred while signing in with Google");
   };
 
   return (

@@ -4,7 +4,7 @@ import OAut from "@/components/OAuth";
 import { icons, images } from "@/constants";
 import { Link, useRouter} from "expo-router";
 import { useCallback, useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
+import { Alert, Image, ScrollView, Text, View } from "react-native";
 import { useSignIn } from '@clerk/clerk-expo'
 
 
@@ -37,7 +37,9 @@ const SignIn = ()  => {
             console.error(JSON.stringify(signInAttempt, null, 2))
           }
         } catch (err: any) {
+          const message = err?.errors?.[0]?.longMessage || err?.message || "Unable to sign in. Please try again.";
           console.error(JSON.stringify(err, null, 2))
+          Alert.alert("Error", message);
         }
       }, [isLoaded, form.email, form.password])
 
@@ -75,7 +77,7 @@ const SignIn = ()  => {
                     <OAut />
 
                     <Link 
-                    href="/sign-up"
+                    href="/(auth)/sign-up"
                     className="text-lg text-center text-general-200 mt-10"
                     >
                         <Text>Don't have an account?{" "}</Text>

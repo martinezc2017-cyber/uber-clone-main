@@ -1,6 +1,7 @@
 import CustomButton from "@/components/CustomButton";
 import GoogleTextInput from "@/components/GoogleTextInput";
 import RideLayout from "@/components/RideLayout";
+import DestinationHistory from "@/components/DestinationHistory";
 import { icons } from "@/constants";
 import { useLocationStore } from "@/store";
 import { router } from "expo-router";
@@ -37,6 +38,10 @@ const FindRide = () => {
           handlePress={(location) => setDestinationLocation(location)}
         />
       </View>
+
+      <DestinationHistory
+        onSelectDestination={(location) => setDestinationLocation(location)}
+      />
 
       <CustomButton
         title="Find Now"

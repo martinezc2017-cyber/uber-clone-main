@@ -44,22 +44,29 @@ const Home = () => {
   useEffect(() => {
     (async () => {
       try {
+        console.log("Requesting location permissions...");
         const { status } = await Location.requestForegroundPermissionsAsync();
+        console.log("Permission status:", status);
+
         if (status !== "granted") {
           setHasPermission(false);
           setLocationError("Location permission is required to load your position.");
+          console.log("Location permission denied");
           return;
         }
 
         setHasPermission(true);
         setLocationError(null);
+        console.log("Getting current location...");
 
         const location = await Location.getCurrentPositionAsync({});
+        console.log("Location received:", location.coords);
 
         const address = await Location.reverseGeocodeAsync({
           latitude: location.coords?.latitude!,
           longitude: location.coords?.longitude!,
         });
+        console.log("Address:", address[0]);
 
         setUserLocation({
           latitude: location.coords?.latitude,
@@ -67,6 +74,7 @@ const Home = () => {
           address: `${address[0].name}, ${address[0].region}`,
         });
       } catch (err) {
+        console.error("Location error:", err);
         setHasPermission(false);
         setLocationError("Unable to fetch current location. Please enable location and try again.");
       }
@@ -78,6 +86,7 @@ const Home = () => {
     longitude: number;
     address: string;
   }) => {
+    console.log("Destination selected:", location);
     setDestinationLocation(location);
 
     router.push("/(root)/find-ride");

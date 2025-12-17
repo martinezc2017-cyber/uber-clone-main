@@ -1,4 +1,4 @@
-package com.arushsingh03.uber
+package com.arushsingh03.nextryde
 
 import android.app.Application
 import android.content.res.Configuration

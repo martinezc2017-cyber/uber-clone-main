@@ -1,18 +1,27 @@
+import '../global.css';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { LogBox } from 'react-native';
+import { BackHandler } from 'react-native';
 import { tokenCache } from '@/lib/auth';
 import * as SplashScreen from 'expo-splash-screen';
 import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo'
-
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 SplashScreen.preventAutoHideAsync();
 
 LogBox.ignoreLogs(["Clerk:"]);
+
+// Polyfill for BackHandler.removeEventListener removed in newer RN versions
+const ensureBackHandlerRemove = () => {
+  const bh: any = BackHandler;
+  if (bh && typeof bh.removeEventListener !== 'function' && typeof bh.addEventListener === 'function') {
+    bh.removeEventListener = (_type: string, subscription: any) => subscription?.remove?.();
+  }
+};
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -32,6 +41,7 @@ if (!publishableKey) {
 }
 
   useEffect(() => {
+    ensureBackHandlerRemove();
     if (loaded) {
       SplashScreen.hideAsync();
     }

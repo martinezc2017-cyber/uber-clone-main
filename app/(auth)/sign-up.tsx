@@ -35,19 +35,18 @@ const SignUp = () => {
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
+        firstName: form.name,
       });
-
-
 
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
 
       setVerification({
         ...verification,
-
         state: "pending"
       })
     } catch (err: any) {
-      Alert.alert("Error", err.errors[0].longMessage);
+      const message = err?.errors?.[0]?.longMessage || err?.message || "Unable to sign up. Please try again.";
+      Alert.alert("Error", message);
     }
   }
 
@@ -60,24 +59,37 @@ const SignUp = () => {
           code: verification.code,
         });
 
+      console.log("Sign-up verification status:", completeSignUp.status);
+
       if (completeSignUp.status === 'complete') {
-        await fetchAPI('/(api)/user', {
-          method : "POST",
-          body: JSON.stringify({
-            name: form.name,
-            email: form.email,
-            clerkId: completeSignUp.createdUserId,
-          }),
-        });
+        try {
+          console.log("Creating user in database...");
+          await fetchAPI('/(api)/user', {
+            method : "POST",
+            body: JSON.stringify({
+              name: form.name,
+              email: form.email,
+              clerkId: completeSignUp.createdUserId,
+            }),
+          });
+          console.log("User created in database successfully");
+        } catch (dbErr) {
+          console.error("Failed to create user in database:", dbErr);
+          // Continue anyway - user is created in Clerk
+        }
 
-
+        console.log("Setting active session...");
         await setActive({ session: completeSignUp.createdSessionId })
+        console.log("Setting verification state to success");
         setVerification({ ...verification, state: "success" })
+        console.log("Verification complete!");
       } else {
+        console.log("Verification failed, status:", completeSignUp.status);
         setVerification({ ...verification, error: "Verification Failed", state: "failed" })
       }
     } catch (err: any) {
-      setVerification({ ...verification, error: err.errors[0].longMessage, state: "failed" })
+      const message = err?.errors?.[0]?.longMessage || err?.message || "Verification failed. Please try again.";
+      setVerification({ ...verification, error: message, state: "failed" })
     }
   }
 
@@ -123,7 +135,7 @@ const SignUp = () => {
           <OAut />
 
           <Link
-            href="/sign-in"
+            href="/(auth)/sign-in"
             className="text-lg text-center text-general-200 mt-6"
           >
             <Text>Already have an account?{" "}</Text>
@@ -134,7 +146,11 @@ const SignUp = () => {
         <ReactNativeModal
           isVisible={verification.state === "pending"}
           onModalHide={() =>{
-            if(verification.state === "success") setshowSuccessModal(true)
+            console.log("Verification modal hiding, state:", verification.state);
+            if(verification.state === "success") {
+              console.log("Setting success modal to true");
+              setshowSuccessModal(true);
+            }
           }}
         >
           <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
@@ -168,7 +184,8 @@ const SignUp = () => {
             />
           </View>
         </ReactNativeModal>
-        <ReactNativeModal isVisible={showSuccessModal}>
+        <ReactNativeModal isVisible={showSuccessModal} onShow={() => console.log("Success modal showing!")}>
+
           <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
             <Image
               source={images.check}

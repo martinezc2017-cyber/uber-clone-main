@@ -109,9 +109,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.arushsingh03.uber'
+    namespace 'com.arushsingh03.nextryde'
     defaultConfig {
-        applicationId 'com.arushsingh03.uber'
+        applicationId 'com.arushsingh03.nextryde'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

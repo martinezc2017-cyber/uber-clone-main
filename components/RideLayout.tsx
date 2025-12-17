@@ -1,10 +1,10 @@
 import { icons } from "@/constants";
 import { router } from "expo-router";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View, Keyboard } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Map from "@/components/Map";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-import { useRef } from "react";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { useRef, useEffect } from "react";
 
 const RideLayout = ({
   title,
@@ -16,6 +16,16 @@ const RideLayout = ({
   snapPoints?: string[];
 }) => {
   const bottomsheetRef = useRef<BottomSheet>(null);
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener('keyboardDidShow', () => {
+      bottomsheetRef.current?.snapToIndex(1);
+    });
+
+    return () => {
+      keyboardWillShow.remove();
+    };
+  }, []);
 
   return (
     <GestureHandlerRootView>
@@ -37,16 +47,19 @@ const RideLayout = ({
           </View>
           <Map />
         </View>
-        <BottomSheet 
-          keyboardBehavior="extend"
-          ref={bottomsheetRef} 
-          snapPoints={snapPoints || ["40%", "85%"]} 
+        <BottomSheet
+          ref={bottomsheetRef}
+          snapPoints={snapPoints || ["40%", "85%"]}
           index={0}
+          enablePanDownToClose={false}
            >
-            <BottomSheetView 
-              style={{ flex: 1, padding: 20 }} >
+            <BottomSheetScrollView
+              style={{ flex: 1, padding: 20 }}
+              contentContainerStyle={{ paddingBottom: 100 }}
+              keyboardShouldPersistTaps="handled"
+            >
               {children}
-            </BottomSheetView>
+            </BottomSheetScrollView>
             </BottomSheet>
       </View>
     </GestureHandlerRootView>

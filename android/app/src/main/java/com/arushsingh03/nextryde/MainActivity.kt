@@ -1,4 +1,4 @@
-package com.arushsingh03.uber
+package com.arushsingh03.nextryde
 
 import android.os.Build
 import android.os.Bundle

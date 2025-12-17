@@ -27,14 +27,16 @@ export async function GET(request: Request, {id}: { id: string }) {
                 'car_image_url', drivers.car_image_url,
                 'car_seats', drivers.car_seats,
                 'rating', drivers.rating
-            ) AS driver 
-        FROM 
+            ) AS driver
+        FROM
             rides
         INNER JOIN
             drivers ON rides.driver_id = drivers.id
-        WHERE 
-            rides.user_id = ${id}
-        ORDER BY 
+        INNER JOIN
+            users ON rides.user_id = users.id
+        WHERE
+            users.clerk_id = ${id}
+        ORDER BY
             rides.created_at DESC;
         `;
 
