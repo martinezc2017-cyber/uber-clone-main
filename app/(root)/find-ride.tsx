@@ -21,7 +21,7 @@ const FindRide = () => {
         <Text className="text-lg font-JakartaSemiBold mb-3">From</Text>
         <GoogleTextInput
           icon={icons.target}
-          initialLocation={userAddress}
+          initialLocation={userAddress || undefined}
           containerStyle="bg-neutral-100"
           textInputBackgroundColor="#f5f5f5"
           handlePress={(location) => setUserLocation(location)}
@@ -32,7 +32,7 @@ const FindRide = () => {
         <Text className="text-lg font-JakartaSemiBold mb-3">To</Text>
         <GoogleTextInput
           icon={icons.target}
-          initialLocation={destinationAddress}
+          initialLocation={destinationAddress || undefined}
           containerStyle="bg-neutral-100"
           textInputBackgroundColor="transparent"
           handlePress={(location) => setDestinationLocation(location)}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Rydo Splash Image</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #333;
+            margin: 20px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #00ff88;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00cc6a;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rydo Splash Screen Generator</h1>
+    <canvas id="canvas" width="1284" height="2778"></canvas>
+    <button onclick="downloadImage()">Download PNG</button>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Background with gradient (dark green)
+        const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width);
+        gradient.addColorStop(0, '#0a2f1f');
+        gradient.addColorStop(1, '#04150f');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Add green circuit-like pattern
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.1)';
+        ctx.lineWidth = 2;
+        for(let i = 0; i < 20; i++) {
+            ctx.beginPath();
+            ctx.arc(
+                Math.random() * canvas.width,
+                Math.random() * canvas.height,
+                Math.random() * 300 + 100,
+                0,
+                Math.PI * 2
+            );
+            ctx.stroke();
+        }
+
+        // Draw the "R" logo
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = 400;
+
+        ctx.fillStyle = 'white';
+
+        // Create the stylized "R" similar to the image you showed
+        ctx.beginPath();
+
+        // Vertical bar of R
+        ctx.fillRect(centerX - size/2, centerY - size/2, size/5, size);
+
+        // Top horizontal part
+        ctx.fillRect(centerX - size/2, centerY - size/2, size*0.6, size/5);
+
+        // Diagonal leg
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(Math.PI / 6);
+        ctx.fillRect(-size/10, size/6, size/5, size*0.4);
+        ctx.restore();
+
+        // Middle horizontal part
+        ctx.fillRect(centerX - size/2, centerY - size/10, size*0.5, size/5);
+
+        // Right vertical part
+        ctx.fillRect(centerX + size/10, centerY - size/2, size/5, size*0.35);
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = 'rydo-splash.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Auto download on page load
+        setTimeout(() => {
+            console.log('Image generated! Click the button to download.');
+        }, 100);
+    </script>
+</body>
+</html>

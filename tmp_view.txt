@@ -1,0 +1,248 @@
+   1: import { useUser } from "@clerk/clerk-expo";
+   2: import { useEffect, useMemo, useRef, useState } from "react";
+   3: import { ActivityIndicator, Image, Text, View, Animated, Easing } from "react-native";
+   4: 
+   5: import Payment from "@/components/Payment";
+   6: import RideLayout from "@/components/RideLayout";
+   7: import StripeProviderWrapper from "@/components/StripeProviderWrapper";
+   8: import { icons } from "@/constants";
+   9: import { images } from "@/constants";
+  10: import { formatTime } from "@/lib/utils";
+  11: import { fetchAPI } from "@/lib/fetch";
+  12: import { useDriverStore, useLocationStore } from "@/store";
+  13: 
+  14: const BookRide = () => {
+  15:   const { user } = useUser();
+  16:   const { userAddress, destinationAddress } = useLocationStore();
+  17:   const { drivers, selectedDriver } = useDriverStore();
+  18:   const [pendingRide, setPendingRide] = useState<Ride | null>(null);
+  19:   const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
+  20:   const [status, setStatus] = useState<"idle" | "creating" | "searching" | "assigned">("idle");
+  21:   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  22:   const pulse = useRef(new Animated.Value(0.95)).current;
+  23: 
+  24:   const driverDetails = useMemo(
+  25:     () => drivers?.find((driver) => +driver.id === selectedDriver),
+  26:     [drivers, selectedDriver],
+  27:   );
+  28: 
+  29:   const clearPolling = () => {
+  30:     if (pollRef.current) {
+  31:       clearInterval(pollRef.current);
+  32:       pollRef.current = null;
+  33:     }
+  34:   };
+  35: 
+  36:   useEffect(() => {
+  37:     return () => clearPolling();
+  38:   }, []);
+  39: 
+  40:   useEffect(() => {
+  41:     if (!pendingRide || status === "assigned") return;
+  42: 
+  43:     const poll = async () => {
+  44:       try {
+  45:         const res = await fetchAPI(`/(api)/ride/status?ride_id=${pendingRide.ride_id}`);
+  46:         const ride = res?.data as Ride | null;
+  47:         if (ride?.driver_id && ride.driver) {
+  48:           setAssignedDriver({
+  49:             id: ride.driver.id,
+  50:             first_name: ride.driver.first_name,
+  51:             last_name: ride.driver.last_name,
+  52:             profile_image_url: ride.driver.profile_image_url,
+  53:             car_image_url: ride.driver.car_image_url,
+  54:             car_seats: ride.driver.car_seats,
+  55:             rating: ride.driver.rating,
+  56:           });
+  57:           setStatus("assigned");
+  58:           clearPolling();
+  59:         }
+  60:       } catch (err) {
+  61:         console.warn("Ride status poll error", err);
+  62:       }
+  63:     };
+  64: 
+  65:     poll();
+  66:     pollRef.current = setInterval(poll, 4000);
+  67:   }, [pendingRide, status]);
+  68: 
+  69:   return (
+  70:     <StripeProviderWrapper>
+  71:       <RideLayout title="Book Ride">
+  72:         {status !== "idle" ? (
+  73:           <View className="flex-1 items-center justify-center py-8 gap-4">
+  74:             {status === "searching" && (
+  75:               <>
+  76:                 <Animated.Image
+  77:                   source={images.logo}
+  78:                   style={{
+  79:                     width: 96,
+  80:                     height: 96,
+  81:                     transform: [{ scale: pulse }],
+  82:                   }}
+  83:                   resizeMode="contain"
+  84:                 />
+  85:                 <Text className="text-lg font-JakartaSemiBold">
+  86:                   Esperando a un driver que acepte tu viaje...
+  87:                 </Text>
+  88:                 <Text className="text-sm text-center text-gray-600 px-6">
+  89:                   Estamos conectándote con un conductor cercano. Te notificaremos cuando acepte.
+  90:                 </Text>
+  91:               </>
+  92:             )}
+  93:             {status === "creating" && (
+  94:               <>
+  95:                 <ActivityIndicator size="large" color="#0286ff" />
+  96:                 <Text className="text-lg font-JakartaSemiBold">
+  97:                   Creando tu solicitud de viaje...
+  98:                 </Text>
+  99:               </>
+ 100:             )}
+ 101:             {status === "creating" && (
+ 102:               <>
+ 103:                 <ActivityIndicator size="large" color="#0286ff" />
+ 104:                 <Text className="text-lg font-JakartaSemiBold">
+ 105:                   Creando tu solicitud de viaje...
+ 106:                 </Text>
+ 107:               </>
+ 108:             )}
+ 109: 
+ 110:             {status === "assigned" && assignedDriver && (
+ 111:               <View className="w-full bg-white rounded-2xl p-5 shadow">
+ 112:                 <Text className="text-xl font-JakartaSemiBold mb-3">
+ 113:                   Conductor asignado
+ 114:                 </Text>
+ 115:                 <View className="flex-row items-center mb-3">
+ 116:                   <Image
+ 117:                     source={{ uri: assignedDriver.profile_image_url }}
+ 118:                     className="w-16 h-16 rounded-full mr-3"
+ 119:                   />
+ 120:                   <View>
+ 121:                     <Text className="text-lg font-JakartaSemiBold">
+ 122:                       {assignedDriver.first_name} {assignedDriver.last_name}
+ 123:                     </Text>
+ 124:                     <View className="flex-row items-center">
+ 125:                       <Image source={icons.star} className="w-4 h-4 mr-1" />
+ 126:                       <Text className="text-sm text-gray-700">
+ 127:                         {assignedDriver.rating ?? "-"}
+ 128:                       </Text>
+ 129:                     </View>
+ 130:                     <Text className="text-sm text-gray-600">
+ 131:                       {assignedDriver.car_seats} seats
+ 132:                     </Text>
+ 133:                   </View>
+ 134:                 </View>
+ 135:                 <View className="border-t border-gray-200 pt-3">
+ 136:                   <Text className="text-sm text-gray-500 mb-1">Recogida</Text>
+ 137:                   <Text className="text-base text-gray-800 mb-2">{userAddress}</Text>
+ 138:                   <Text className="text-sm text-gray-500 mb-1">Destino</Text>
+ 139:                   <Text className="text-base text-gray-800">{destinationAddress}</Text>
+ 140:                 </View>
+ 141:               </View>
+ 142:             )}
+ 143:           </View>
+ 144:           </View>
+ 145:         ) : !driverDetails ? (
+ 146:           <View className="flex flex-col items-center justify-center h-full">
+ 147:             <Text className="text-lg font-JakartaSemiBold">
+ 148:               No driver selected
+ 149:             </Text>
+ 150:           </View>
+ 151:         ) : (
+ 152:           <>
+ 153:             <Text className="text-xl font-JakartaSemiBold mb-3">
+ 154:               Ride Information
+ 155:             </Text>
+ 156: 
+ 157:             <View className="flex flex-col w-full items-center justify-center mt-10">
+ 158:               <Image
+ 159:                 source={{ uri: driverDetails?.profile_image_url }}
+ 160:                 className="w-28 h-28 rounded-full"
+ 161:               />
+ 162: 
+ 163:               <View className="flex flex-row items-center justify-center mt-5 space-x-2">
+ 164:                 <Text className="text-lg font-JakartaSemiBold">
+ 165:                   {driverDetails?.title}
+ 166:                 </Text>
+ 167: 
+ 168:                 <View className="flex flex-row items-center space-x-0.5">
+ 169:                   <Image
+ 170:                     source={icons.star}
+ 171:                     className="w-5 h-5"
+ 172:                     resizeMode="contain"
+ 173:                   />
+ 174:                   <Text className="text-lg font-JakartaRegular">
+ 175:                     {driverDetails?.rating}
+ 176:                   </Text>
+ 177:                 </View>
+ 178:               </View>
+ 179:             </View>
+ 180: 
+ 181:             <View className="flex flex-col w-full items-start justify-center py-3 px-5 rounded-3xl bg-general-600 mt-5">
+ 182:               <View className="flex flex-row items-center justify-between w-full border-b border-white py-3">
+ 183:                 <Text className="text-lg font-JakartaRegular">Ride Price</Text>
+ 184:                 <Text className="text-lg font-JakartaRegular text-[#0CC25F]">
+ 185:                   ${driverDetails?.price}
+ 186:                 </Text>
+ 187:               </View>
+ 188: 
+ 189:               <View className="flex flex-row items-center justify-between w-full border-b border-white py-3">
+ 190:                 <Text className="text-lg font-JakartaRegular">Pickup Time</Text>
+ 191:                 <Text className="text-lg font-JakartaRegular">
+ 192:                   {formatTime(parseInt(`${driverDetails?.time}`) || 5)}
+ 193:                 </Text>
+ 194:               </View>
+ 195: 
+ 196:               <View className="flex flex-row items-center justify-between w-full py-3">
+ 197:                 <Text className="text-lg font-JakartaRegular">Car Seats</Text>
+ 198:                 <Text className="text-lg font-JakartaRegular">
+ 199:                   {driverDetails?.car_seats}
+ 200:                 </Text>
+ 201:               </View>
+ 202:             </View>
+ 203: 
+ 204:             <View className="flex flex-col w-full items-start justify-center mt-5">
+ 205:               <View className="flex flex-row items-center justify-start mt-3 border-t border-b border-general-700 w-full py-3">
+ 206:                 <Image source={icons.to} className="w-6 h-6" />
+ 207:                 <Text className="text-lg font-JakartaRegular ml-2">
+ 208:                   {userAddress}
+ 209:                 </Text>
+ 210:               </View>
+ 211: 
+ 212:               <View className="flex flex-row items-center justify-start border-b border-general-700 w-full py-3">
+ 213:                 <Image source={icons.point} className="w-6 h-6" />
+ 214:                 <Text className="text-lg font-JakartaRegular ml-2">
+ 215:                   {destinationAddress}
+ 216:                 </Text>
+ 217:               </View>
+ 218:             </View>
+ 219: 
+ 220:             <Payment
+ 221:               fullName={user?.fullName!}
+ 222:               email={user?.emailAddresses[0].emailAddress!}
+ 223:               amount={driverDetails?.price!}
+ 224:               driverId={driverDetails?.id}
+ 225:               rideTime={driverDetails?.time!}
+ 226:               onStartWaiting={() => {
+ 227:                 setStatus("creating");
+ 228:                 setPendingRide(null);
+ 229:                 setAssignedDriver(null);
+ 230:               }}
+ 231:               onRideCreated={(ride) => {
+ 232:                 setPendingRide(ride);
+ 233:                 setStatus("searching");
+ 234:                 setAssignedDriver(null);
+ 235:               }}
+ 236:               onError={() => {
+ 237:                 setStatus("idle");
+ 238:                 setPendingRide(null);
+ 239:               }}
+ 240:             />
+ 241:           </>
+ 242:         )}
+ 243:       </RideLayout>
+ 244:     </StripeProviderWrapper>
+ 245:   );
+ 246: };
+ 247: 
+ 248: export default BookRide;

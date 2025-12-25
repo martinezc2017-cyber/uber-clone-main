@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Nextryde",
+      "name": "Nextryde",
     "slug": "nextryde",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -57,9 +57,6 @@
     "extra": {
       "router": {
         "origin": "https://nextryde.com/"
-      },
-      "eas": {
-        "projectId": "44068c86-be25-4a61-a952-bc9a0185b6f6"
       },
       "EXPO_PUBLIC_GOOGLE_API_KEY": "AIzaSyCfY-wxJaGf036soqLFYhQCCHHFJcK4SyE"
     }

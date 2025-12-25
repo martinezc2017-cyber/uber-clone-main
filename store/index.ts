@@ -27,6 +27,13 @@ export const useLocationStore = create<LocationStoreWithHistory>()(
             destinationAddress: null,
             destinationLatitude: null,
             destinationLongitude: null,
+            clearDestinationLocation: () => {
+                set(() => ({
+                    destinationAddress: null,
+                    destinationLatitude: null,
+                    destinationLongitude: null,
+                }));
+            },
             destinationHistory: [],
             setUserLocation: ({
                 latitude, longitude, address

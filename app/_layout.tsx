@@ -24,7 +24,7 @@ const ensureBackHandlerRemove = () => {
 };
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, fontError] = useFonts({
     "Jakarta-Bold": require("../assets/fonts/PlusJakartaSans-Bold.ttf"),
     "Jakarta-ExtraBold": require("../assets/fonts/PlusJakartaSans-ExtraBold.ttf"),
     "Jakarta-ExtraLight": require("../assets/fonts/PlusJakartaSans-ExtraLight.ttf"),
@@ -40,14 +40,18 @@ if (!publishableKey) {
   );
 }
 
+if (fontError) {
+  console.warn("Font load error:", fontError);
+}
+
   useEffect(() => {
     ensureBackHandlerRemove();
-    if (loaded) {
+    if (loaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, fontError]);
 
-  if (!loaded) {
+  if (!loaded && !fontError) {
     return null;
   }
 
@@ -58,6 +62,7 @@ if (!publishableKey) {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(root)" options={{ headerShown: false }} />
+        <Stack.Screen name="driver" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
         </ClerkLoaded>

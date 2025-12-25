@@ -7,19 +7,40 @@ import { onboarding } from "@/constants";
 import CustomButton from "@/components/CustomButton";
 
 const Onboarding = ()  => {
-    const swiperRef = useRef<Swiper>(null); 
+    const swiperRef = useRef<Swiper>(null);
     const [activeIndex, setactiveIndex] = useState(0);
     const isLastSlide = activeIndex === onboarding.length - 1;
     return(
         <SafeAreaView className="flex h-full items-center justify-between bg-white">
-            <TouchableOpacity
-            onPress={() => {
-                router.replace("/(auth)/sign-up");
-            }}
-            className="w-full flex justify-end items-end p-5"
-            >
-                <Text className="text-black text-md font-JakartaBold">Skip</Text>
-            </TouchableOpacity>
+            <View className="w-full flex flex-row justify-between items-center p-5">
+                <View className="flex flex-row gap-2">
+                    <TouchableOpacity
+                        onPress={() => router.push("/(root)/(tabs)/home")}
+                        className="bg-primary-500 px-3 py-2 rounded-lg"
+                    >
+                        <Text className="text-white text-xs font-JakartaBold">Cliente</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => router.push("/driver")}
+                        className="bg-primary-700 px-3 py-2 rounded-lg"
+                    >
+                        <Text className="text-white text-xs font-JakartaBold">Driver</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => router.push("/admin")}
+                        className="bg-secondary-800 px-3 py-2 rounded-lg"
+                    >
+                        <Text className="text-white text-xs font-JakartaBold">Admin</Text>
+                    </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                    onPress={() => {
+                        router.replace("/(auth)/sign-up");
+                    }}
+                >
+                    <Text className="text-black text-md font-JakartaBold">Skip</Text>
+                </TouchableOpacity>
+            </View>
             <Swiper 
             ref={swiperRef}
             loop={false}

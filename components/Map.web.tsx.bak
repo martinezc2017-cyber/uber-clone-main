@@ -1,0 +1,35 @@
+import React from "react";
+import { Text, View } from "react-native";
+
+import { useLocationStore } from "@/store";
+
+const Map = () => {
+  const {
+    userLatitude,
+    userLongitude,
+    destinationLatitude,
+    destinationLongitude,
+  } = useLocationStore();
+
+  return (
+    <View className="flex-1 items-center justify-center bg-white rounded-2xl p-4">
+      <Text className="text-sm font-JakartaRegular text-center">
+        El mapa no está disponible en web en esta demo.
+      </Text>
+      {(userLatitude || destinationLatitude) && (
+        <Text className="text-xs text-general-200 font-JakartaRegular text-center mt-2">
+          {userLatitude && userLongitude
+            ? `Origen: ${userLatitude.toFixed(4)}, ${userLongitude.toFixed(4)}`
+            : "Origen: —"}
+          {"\n"}
+          {destinationLatitude && destinationLongitude
+            ? `Destino: ${destinationLatitude.toFixed(4)}, ${destinationLongitude.toFixed(4)}`
+            : "Destino: —"}
+        </Text>
+      )}
+    </View>
+  );
+};
+
+export default Map;
+

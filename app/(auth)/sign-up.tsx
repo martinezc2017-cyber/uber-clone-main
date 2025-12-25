@@ -64,7 +64,7 @@ const SignUp = () => {
       if (completeSignUp.status === 'complete') {
         try {
           console.log("Creating user in database...");
-          await fetchAPI('/(api)/user', {
+          await fetchAPI('/api/user', {
             method : "POST",
             body: JSON.stringify({
               name: form.name,

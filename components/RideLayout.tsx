@@ -10,10 +10,14 @@ const RideLayout = ({
   title,
   children,
   snapPoints,
+  showMap = true,
+  mapContent,
 }: {
   title: string;
   children: React.ReactNode;
   snapPoints?: string[];
+  showMap?: boolean;
+  mapContent?: React.ReactNode;
 }) => {
   const bottomsheetRef = useRef<BottomSheet>(null);
 
@@ -30,7 +34,7 @@ const RideLayout = ({
   return (
     <GestureHandlerRootView>
       <View className="flex-1 bg-white">
-        <View className="flex flex-col h-screen bg-blue-500">
+        <View className={`flex flex-col bg-blue-500 ${showMap ? "h-screen" : ""}`}>
           <View className="flex flex-row absolute z-10 top-16 items-center justify-start px-5">
             <TouchableOpacity onPress={() => router.back()}>
               <View className="w-10 h-10 bg-white rounded-full items-center justify-center">
@@ -45,7 +49,7 @@ const RideLayout = ({
               {title || "Go Back"}
             </Text>
           </View>
-          <Map />
+          {showMap && (mapContent ?? <Map />)}
         </View>
         <BottomSheet
           ref={bottomsheetRef}

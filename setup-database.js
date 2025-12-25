@@ -48,6 +48,26 @@ async function setupDatabase() {
     )
   `;
 
+  console.log('Creating driver waitlist table...');
+  await sql`
+    CREATE TABLE IF NOT EXISTS driver_waitlist (
+      id SERIAL PRIMARY KEY,
+      first_name VARCHAR(100) NOT NULL,
+      last_name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      phone VARCHAR(30),
+      city VARCHAR(120),
+      vehicle TEXT,
+      experience_years INTEGER,
+      status VARCHAR(20) DEFAULT 'pending',
+      source VARCHAR(50),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_driver_waitlist_email ON driver_waitlist(email)`;
+
   console.log('Checking if drivers already exist...');
   const existingDrivers = await sql`SELECT COUNT(*) as count FROM drivers`;
 

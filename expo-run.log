@@ -1,0 +1,11 @@
+env: load .env
+env: export EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY EXPO_PUBLIC_GOOGLE_API_KEY EXPO_PUBLIC_GEOAPIFY_API_KEY EXPO_PUBLIC_OPENROUTE_API_KEY EXPO_PUBLIC_API_URL DATABASE_URL EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY STRIPE_SECRET_KEY
+Starting project at C:\Users\marti\Downloads\uber-clone-main\uber-clone-main
+Starting Metro Bundler
+Waiting on http://localhost:8083
+Logs for your project will appear below.
+λ Bundled 77ms app\api\ride\pending+api.ts (1 module)
+Pending rides request { driverLat: 33.4, driverLng: -111.8, maxDistance: 500 }
+Pending rides request { driverLat: 33.4, driverLng: -111.8, maxDistance: 500 }
+Pending rides request { driverLat: 33.4, driverLng: -111.8, maxDistance: 500 }
+^C

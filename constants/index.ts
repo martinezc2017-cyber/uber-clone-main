@@ -69,6 +69,10 @@ export const icons = {
     star,
     target,
     to,
+    // Aliases for missing art
+    car: marker,
+    flag: target,
+    from: point,
 };
 
 export const onboarding = [

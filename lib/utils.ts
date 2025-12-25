@@ -22,6 +22,16 @@ export function formatTime(minutes: number): string {
     }
 }
 
+export function formatTimeOfDay(dateString: string): string {
+    const date = new Date(dateString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    const minuteStr = minutes < 10 ? `0${minutes}` : minutes;
+    return `${hour12}:${minuteStr} ${ampm}`;
+}
+
 export function formatDate(dateString: string): string {
     const date = new Date(dateString);
     const day = date.getDate();
