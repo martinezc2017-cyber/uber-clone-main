@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "TORO",
+    "slug": "toro-rider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "toro-rider",
+    "sdkVersion": "54.0.0",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/backgrounds/dark-gradient.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#000000"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.toro.rider",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCfY-wxJaGf036soqLFYhQCCHHFJcK4SyE"
+        }
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "server",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use your location to show your current position on the map and find nearby rides."
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyCfY-wxJaGf036soqLFYhQCCHHFJcK4SyE"
+      }
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://nextryde.com/"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://nextryde.com/"
+      },
+      "EXPO_PUBLIC_GOOGLE_API_KEY": "AIzaSyCfY-wxJaGf036soqLFYhQCCHHFJcK4SyE"
+    }
+  }
+}
