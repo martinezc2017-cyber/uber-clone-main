@@ -31,74 +31,76 @@ import onboarding1 from "@/assets/images/onboarding1.png";
 import onboarding2 from "@/assets/images/onboarding2.png";
 import onboarding3 from "@/assets/images/onboarding3.png";
 import signUpCar from "@/assets/images/signup-car.png";
+import toroLogo from "@/assets/images/toro-logo.png";
 
 export const images = {
-    onboarding1,
-    onboarding2,
-    onboarding3,
-    getStarted,
-    signUpCar,
-    check,
-    noResult,
-    message,
+  onboarding1,
+  onboarding2,
+  onboarding3,
+  getStarted,
+  signUpCar,
+  check,
+  noResult,
+  message,
+  toroLogo,
 };
 
 export const icons = {
-    arrowDown,
-    arrowUp,
-    backArrow,
-    chat,
-    checkmark,
-    close,
-    dollar,
-    email,
-    eyecross,
-    google,
-    home,
-    list,
-    lock,
-    map,
-    marker,
-    out,
-    person,
-    pin,
-    point,
-    profile,
-    search,
-    selectedMarker,
-    star,
-    target,
-    to,
-    // Aliases for missing art
-    car: marker,
-    flag: target,
-    from: point,
+  arrowDown,
+  arrowUp,
+  backArrow,
+  chat,
+  checkmark,
+  close,
+  dollar,
+  email,
+  eyecross,
+  google,
+  home,
+  list,
+  lock,
+  map,
+  marker,
+  out,
+  person,
+  pin,
+  point,
+  profile,
+  search,
+  selectedMarker,
+  star,
+  target,
+  to,
+  // Aliases for missing art
+  car: marker,
+  flag: target,
+  from: point,
 };
 
 export const onboarding = [
-    {
-        id: 1,
-        title: "The perfect ride is just a tap away!",
-        description:
-            "Your journey begins with Ryde. Find your ideal ride effortlessly.",
-        image: images.onboarding1,
-    },
-    {
-        id: 2,
-        title: "Best car in your hands with Ryde",
-        description:
-            "Discover the convenience of finding your perfect ride with Ryde",
-        image: images.onboarding2,
-    },
-    {
-        id: 3,
-        title: "Your ride, your way. Let's go!",
-        description:
-            "Enter your destination, sit back, and let us take care of the rest.",
-        image: images.onboarding3,
-    },
+  {
+    id: 1,
+    title: "Bienvenido a Toro",
+    description:
+      "Viajes premium, conductores verificados y seguridad de nivel ejecutivo.",
+    image: images.toroLogo,
+  },
+  {
+    id: 2,
+    title: "Comodidad y transparencia",
+    description:
+      "Precios claros, soporte 24/7 y autos seleccionados para tu tranquilidad.",
+    image: images.toroLogo,
+  },
+  {
+    id: 3,
+    title: "Listo para tu siguiente viaje",
+    description:
+      "Pide, sigue y comparte tu recorrido con la experiencia Toro desde el primer dia.",
+    image: images.toroLogo,
+  },
 ];
 
 export const data = {
-    onboarding,
+  onboarding,
 };

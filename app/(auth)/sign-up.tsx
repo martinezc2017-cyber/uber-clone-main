@@ -3,16 +3,21 @@ import OAut from "@/components/OAuth";
 import { Link, router } from "expo-router";
 import { icons, images } from "@/constants";
 import { useSignUp } from "@clerk/clerk-expo";
-import InputField from "@/components/InputField";
 import ReactNativeModal from "react-native-modal";
 import CustomButton from "@/components/CustomButton";
-import { Alert, Image, ScrollView, Text, View } from "react-native";
+import { Alert, Image, ScrollView, Text, View, TextInput } from "react-native";
+import Screen from "@/components/layout/Screen";
 import { fetchAPI } from "@/lib/fetch";
+import { useGlassStyle } from "@/components/layout/GlassCard";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 
 const SignUp = () => {
   const { isLoaded, signUp, setActive } = useSignUp();
   const [showSuccessModal, setshowSuccessModal] = useState(false);
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
+  const glassStyle = useGlassStyle();
 
   const [form, setform] = useState({
     name: '',
@@ -25,6 +30,26 @@ const SignUp = () => {
     error: "",
     code: ""
   });
+
+  // Custom input style for better spacing
+  const inputContainerStyle = {
+    backgroundColor: activeTheme === "dark" ? "rgba(255,255,255,0.08)" : "#F5F5F5",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: activeTheme === "dark" ? "rgba(255,255,255,0.12)" : "#E0E0E0",
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 16,
+    height: 56,
+  };
+
+  const inputStyle = {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
+    fontFamily: "Jakarta-Medium",
+    marginLeft: 12,
+  };
 
   const onSignUpPress = async () => {
     if (!isLoaded) {
@@ -59,11 +84,8 @@ const SignUp = () => {
           code: verification.code,
         });
 
-      console.log("Sign-up verification status:", completeSignUp.status);
-
       if (completeSignUp.status === 'complete') {
         try {
-          console.log("Creating user in database...");
           await fetchAPI('/api/user', {
             method : "POST",
             body: JSON.stringify({
@@ -72,19 +94,13 @@ const SignUp = () => {
               clerkId: completeSignUp.createdUserId,
             }),
           });
-          console.log("User created in database successfully");
         } catch (dbErr) {
           console.error("Failed to create user in database:", dbErr);
-          // Continue anyway - user is created in Clerk
         }
 
-        console.log("Setting active session...");
         await setActive({ session: completeSignUp.createdSessionId })
-        console.log("Setting verification state to success");
         setVerification({ ...verification, state: "success" })
-        console.log("Verification complete!");
       } else {
-        console.log("Verification failed, status:", completeSignUp.status);
         setVerification({ ...verification, error: "Verification Failed", state: "failed" })
       }
     } catch (err: any) {
@@ -95,121 +111,239 @@ const SignUp = () => {
 
 
   return (
-    <ScrollView className="flex-1 bg-white">
-      <View className="flex-1 bg-white">
-        <View className="relative w-full h-[250px]">
-          <Image
-            source={images.signUpCar} className="z-0 w-full h-[250px]" />
-          <Text className="text-2xl text-black font-JakartaSemiBold absolute bottom-5 left-5">Create Your Account</Text>
+    <Screen>
+    <ScrollView style={{ flex: 1, backgroundColor: "#000000" }}>
+      <View style={{ flex: 1 }}>
+        {/* Header with Toro Logo */}
+        <View style={{
+          backgroundColor: "#000000",
+          paddingTop: 60,
+          paddingBottom: 30,
+          alignItems: "center",
+        }}>
+          <View style={{
+            width: 120,
+            height: 120,
+            borderRadius: 24,
+            backgroundColor: "#0a0a0a",
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "rgba(139, 106, 63, 0.3)",
+            shadowColor: "#8B6A3F",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 16,
+            elevation: 8,
+          }}>
+            <Image
+              source={images.toroLogo}
+              style={{ width: 100, height: 100 }}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={{
+            color: "#FFFFFF",
+            fontSize: 28,
+            fontFamily: "Jakarta-Bold",
+            marginTop: 20,
+          }}>
+            Crear Cuenta
+          </Text>
+          <Text style={{
+            color: "rgba(255,255,255,0.5)",
+            fontSize: 14,
+            fontFamily: "Jakarta-Medium",
+            marginTop: 8,
+          }}>
+            Regístrate para comenzar
+          </Text>
         </View>
-        <View className="p-5">
-          <InputField
-            label="Name"
-            placeholder="Enter Your Name"
-            icon={icons.person}
-            value={form.name}
-            onChangeText={(value) => setform({ ...form, name: value })}
-          />
-          <InputField
-            label="Email"
-            placeholder="Enter Your Email"
-            icon={icons.email}
-            value={form.email}
-            onChangeText={(value) => setform({ ...form, email: value })}
-          />
-          <InputField
-            label="Password"
-            placeholder="Enter Your Password"
-            icon={icons.lock}
-            secureTextEntry={true}
-            value={form.password}
-            onChangeText={(value) => setform({ ...form, password: value })}
-          />
 
+        {/* Form Container */}
+        <View style={{
+          backgroundColor: colors.bg,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
+          paddingHorizontal: 24,
+          paddingTop: 32,
+          paddingBottom: 40,
+          minHeight: 500,
+        }}>
+          {/* Name Field */}
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{
+              color: colors.text,
+              fontSize: 14,
+              fontFamily: "Jakarta-SemiBold",
+              marginBottom: 10,
+              marginLeft: 4,
+            }}>
+              Nombre
+            </Text>
+            <View style={inputContainerStyle}>
+              <Image source={icons.person} style={{ width: 22, height: 22, tintColor: colors.muted }} />
+              <TextInput
+                style={inputStyle}
+                placeholder="Ingresa tu nombre"
+                placeholderTextColor={colors.muted}
+                value={form.name}
+                onChangeText={(value) => setform({ ...form, name: value })}
+              />
+            </View>
+          </View>
+
+          {/* Email Field */}
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{
+              color: colors.text,
+              fontSize: 14,
+              fontFamily: "Jakarta-SemiBold",
+              marginBottom: 10,
+              marginLeft: 4,
+            }}>
+              Email
+            </Text>
+            <View style={inputContainerStyle}>
+              <Image source={icons.email} style={{ width: 22, height: 22, tintColor: colors.muted }} />
+              <TextInput
+                style={inputStyle}
+                placeholder="Ingresa tu email"
+                placeholderTextColor={colors.muted}
+                value={form.email}
+                onChangeText={(value) => setform({ ...form, email: value })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* Password Field */}
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{
+              color: colors.text,
+              fontSize: 14,
+              fontFamily: "Jakarta-SemiBold",
+              marginBottom: 10,
+              marginLeft: 4,
+            }}>
+              Contraseña
+            </Text>
+            <View style={inputContainerStyle}>
+              <Image source={icons.lock} style={{ width: 22, height: 22, tintColor: colors.muted }} />
+              <TextInput
+                style={inputStyle}
+                placeholder="Ingresa tu contraseña"
+                placeholderTextColor={colors.muted}
+                value={form.password}
+                onChangeText={(value) => setform({ ...form, password: value })}
+                secureTextEntry
+              />
+            </View>
+          </View>
+
+          {/* Sign Up Button */}
           <CustomButton
-            title="Sign Up"
+            title="Registrarse"
             onPress={onSignUpPress}
-            className="mt-6"
+            className="mb-4"
           />
 
           <OAut />
 
-          <Link
-            href="/(auth)/sign-in"
-            className="text-lg text-center text-general-200 mt-6"
-          >
-            <Text>Already have an account?{" "}</Text>
-            <Text className="text-primary-500">LogIn</Text>
-          </Link>
+          <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 24 }}>
+            <Text style={{ color: colors.muted, fontSize: 15 }}>
+              ¿Ya tienes cuenta?{" "}
+            </Text>
+            <Link href="/(auth)/sign-in">
+              <Text style={{ color: "#8B6A3F", fontSize: 15, fontFamily: "Jakarta-SemiBold" }}>
+                Iniciar Sesión
+              </Text>
+            </Link>
+          </View>
         </View>
 
+        {/* Verification Modal */}
         <ReactNativeModal
           isVisible={verification.state === "pending"}
           onModalHide={() =>{
-            console.log("Verification modal hiding, state:", verification.state);
             if(verification.state === "success") {
-              console.log("Setting success modal to true");
               setshowSuccessModal(true);
             }
           }}
         >
-          <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
-            <Text className="text-2xl font-JakartaExtraBold mb-2">
-              verification
+          <View style={[glassStyle, { paddingHorizontal: 28, paddingVertical: 36, minHeight: 300 }]}>
+            <Text style={{ color: colors.text, fontSize: 24, marginBottom: 8, fontFamily: "Jakarta-ExtraBold" }}>
+              Verificación
             </Text>
-            <Text className="font-Jakarta mb-5">
-              We've sent a verification code to {form.email}
+            <Text style={{ color: colors.muted, marginBottom: 20, fontFamily: "Jakarta-Regular" }}>
+              Enviamos un código de verificación a {form.email}
             </Text>
 
-            <InputField
-              label="code"
-              icon={icons.lock}
-              placeholder="12345"
-              value={verification.code}
-              keyboardType="numeric"
-              onChangeText={(code) => setVerification({ ...verification, code })
-              }
-            />
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{
+                color: colors.text,
+                fontSize: 14,
+                fontFamily: "Jakarta-SemiBold",
+                marginBottom: 10,
+                marginLeft: 4,
+              }}>
+                Código
+              </Text>
+              <View style={inputContainerStyle}>
+                <Image source={icons.lock} style={{ width: 22, height: 22, tintColor: colors.muted }} />
+                <TextInput
+                  style={inputStyle}
+                  placeholder="12345"
+                  placeholderTextColor={colors.muted}
+                  value={verification.code}
+                  onChangeText={(code) => setVerification({ ...verification, code })}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
 
             {verification.error && (
-              <Text className="text-red-500 text-sm mt-1">
+              <Text style={{ color: colors.danger, fontSize: 14, marginTop: 4, marginBottom: 8 }}>
                 {verification.error}
               </Text>
             )}
 
-            <CustomButton 
-            title="Verify Email" 
-            onPress={onPressVerify} 
-            className="mt-5 bg-success-500" 
+            <CustomButton
+              title="Verificar Email"
+              onPress={onPressVerify}
+              className="mt-4"
             />
           </View>
         </ReactNativeModal>
-        <ReactNativeModal isVisible={showSuccessModal} onShow={() => console.log("Success modal showing!")}>
 
-          <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
+        {/* Success Modal */}
+        <ReactNativeModal isVisible={showSuccessModal}>
+          <View style={[glassStyle, { paddingHorizontal: 28, paddingVertical: 36, minHeight: 300 }]}>
             <Image
               source={images.check}
-              className="w-[110px] h-[110px] mx-auto my-5"
+              style={{ width: 110, height: 110, alignSelf: "center", marginVertical: 20 }}
             />
-            <Text className="text-3xl font-JakartaBold text-center">
-              Verified
+            <Text style={{ color: colors.text, fontSize: 28, textAlign: "center", fontFamily: "Jakarta-Bold" }}>
+              Verificado
             </Text>
-            <Text className="text-base text-gray-400 font-Jakarta text-center mt-2">
-              You have successfully verified your account.
+            <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", marginTop: 8, fontFamily: "Jakarta-Regular" }}>
+              Tu cuenta ha sido verificada exitosamente.
             </Text>
 
             <CustomButton
-              title="Browse Home"
+              title="Continuar"
               onPress={() => {
                 setshowSuccessModal(false);
-                router.push("/(root)/(tabs)/home")}}
-              className="mt-5"
+                router.push("/(root)/(tabs)/home")
+              }}
+              className="mt-6"
             />
-
           </View>
         </ReactNativeModal>
       </View>
     </ScrollView>
+    </Screen>
   );
 };
 

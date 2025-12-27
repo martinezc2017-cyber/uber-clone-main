@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     }
 
     if (ride.ride_status === "cancelled") {
-      const fee = computeFee(ride);
+      const fee = computeFee(ride, false);
       return Response.json({ data: fee, message: "Ride already cancelled" });
     }
 

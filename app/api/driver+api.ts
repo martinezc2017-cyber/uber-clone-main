@@ -5,8 +5,15 @@ export async function GET() {
         const sql = neon(`${process.env.DATABASE_URL}`);
 
         const response = await sql`
-          SELECT * FROM drivers
-          ORDER BY created_at DESC;
+          SELECT 
+            d.*,
+            ds.latitude,
+            ds.longitude,
+            ds.status as driver_status,
+            ds.updated_at as status_updated_at
+          FROM drivers d
+          LEFT JOIN driver_status ds ON ds.driver_id = d.id
+          ORDER BY d.created_at DESC;
         `;
 
         return Response.json({ data: response });

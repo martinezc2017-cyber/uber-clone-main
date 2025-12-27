@@ -1,16 +1,31 @@
 import React from "react";
 import { Stack } from "expo-router";
+import { View } from "react-native";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 export default function DriverLayout() {
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
+
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
-      <Stack.Screen name="session-summary" options={{ headerShown: false }} />
-      <Stack.Screen name="menu" options={{ headerShown: false }} />
-      <Stack.Screen name="menu/[slug]" options={{ headerShown: false }} />
-      <Stack.Screen name="navigation" options={{ headerShown: false }} />
-      <Stack.Screen name="trip" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+          animation: "fade",
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="session-summary" />
+        <Stack.Screen name="menu" />
+        <Stack.Screen name="menu/[slug]" />
+        <Stack.Screen name="navigation" />
+        <Stack.Screen name="trip" />
+        <Stack.Screen name="premium-nav" />
+        <Stack.Screen name="fare-breakdown" />
+      </Stack>
+    </View>
   );
 }

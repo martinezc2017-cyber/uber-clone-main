@@ -5,6 +5,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLocationStore } from "@/store";
+import Screen from "@/components/layout/Screen";
 
 const PinLocation = () => {
   const router = useRouter();
@@ -63,12 +64,13 @@ const PinLocation = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-200">
+    <Screen>
+      <SafeAreaView className="flex-1">
+      <View className="flex-row items-center justify-between px-4 py-3 border-b border-app-border bg-app-surface">
         <TouchableOpacity onPress={() => router.back()}>
-          <Text className="text-lg font-JakartaSemiBold">✕</Text>
+          <Text className="text-lg font-JakartaSemiBold text-app-text">✕</Text>
         </TouchableOpacity>
-        <Text className="text-lg font-JakartaSemiBold">
+        <Text className="text-lg font-JakartaSemiBold text-app-text">
           Pin {isOrigin ? "origin" : "destination"}
         </Text>
         <View style={{ width: 24 }} />
@@ -76,8 +78,8 @@ const PinLocation = () => {
 
       <View className="flex-1">
         {loading && (
-          <View className="absolute inset-0 z-10 items-center justify-center bg-white/60">
-            <ActivityIndicator size="large" />
+          <View className="absolute inset-0 z-10 items-center justify-center bg-app-bg/70">
+            <ActivityIndicator size="large" color="#8B6A3F" />
           </View>
         )}
         <MapView
@@ -96,18 +98,23 @@ const PinLocation = () => {
         </MapView>
       </View>
 
-      <View className="px-4 py-3 bg-white border-t border-gray-200">
+      <View className="px-4 py-3 bg-app-surface border-t border-app-border">
         <TouchableOpacity
-          className={`rounded-full py-3 ${marker ? "bg-black" : "bg-gray-300"}`}
+          className={`rounded-full py-3 ${marker ? "bg-app-accent" : "bg-app-bg border border-app-border"}`}
           disabled={!marker}
           onPress={handleConfirm}
         >
-          <Text className="text-white text-center font-JakartaSemiBold text-base">
+          <Text
+            className={`text-center font-JakartaSemiBold text-base ${
+              marker ? "text-white" : "text-app-muted"
+            }`}
+          >
             Confirm {isOrigin ? "origin" : "destination"}
           </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+    </Screen>
   );
 };
 

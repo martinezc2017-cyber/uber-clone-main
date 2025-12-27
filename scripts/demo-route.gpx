@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="rideshare-demo">
+  <trk>
+    <name>CDMX Centro → Chapultepec</name>
+    <trkseg>
+      <trkpt lat="19.432608" lon="-99.133209"><time>2024-01-01T00:00:00Z</time></trkpt>
+      <trkpt lat="19.433900" lon="-99.140800"><time>2024-01-01T00:00:20Z</time></trkpt>
+      <trkpt lat="19.435800" lon="-99.148900"><time>2024-01-01T00:00:40Z</time></trkpt>
+      <trkpt lat="19.438600" lon="-99.156800"><time>2024-01-01T00:01:00Z</time></trkpt>
+      <trkpt lat="19.420200" lon="-99.163300"><time>2024-01-01T00:01:20Z</time></trkpt>
+      <trkpt lat="19.413800" lon="-99.174000"><time>2024-01-01T00:01:40Z</time></trkpt>
+      <trkpt lat="19.413300" lon="-99.182200"><time>2024-01-01T00:02:00Z</time></trkpt>
+      <trkpt lat="19.411900" lon="-99.187500"><time>2024-01-01T00:02:20Z</time></trkpt>
+      <trkpt lat="19.411000" lon="-99.193400"><time>2024-01-01T00:02:40Z</time></trkpt>
+      <trkpt lat="19.420050" lon="-99.191000"><time>2024-01-01T00:03:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

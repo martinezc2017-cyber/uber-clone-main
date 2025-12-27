@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="pending-ride-mesa">
+  <trk>
+    <name>Mesa AZ - pickup 949 S Longmore Rd</name>
+    <trkseg>
+      <!-- Start a par de cuadras antes para simular aproximación -->
+      <trkpt lat="33.393800" lon="-111.851900"><time>2024-01-01T00:00:00Z</time></trkpt>
+      <trkpt lat="33.395100" lon="-111.850700"><time>2024-01-01T00:00:20Z</time></trkpt>
+      <trkpt lat="33.396700" lon="-111.850000"><time>2024-01-01T00:00:40Z</time></trkpt>
+      <trkpt lat="33.397600" lon="-111.849300"><time>2024-01-01T00:01:00Z</time></trkpt>
+      <!-- Pickup: 949 S Longmore Rd, Mesa, AZ (aprox coords) -->
+      <trkpt lat="33.398050" lon="-111.848900"><time>2024-01-01T00:01:20Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

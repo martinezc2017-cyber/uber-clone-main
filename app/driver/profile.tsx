@@ -320,6 +320,33 @@ export default function DriverProfile() {
           </Text>
         </View>
 
+        {/* Skin Shop Button */}
+        <Pressable
+          onPress={() => router.push("/shop")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: "#d9b14a",
+            borderRadius: 16,
+            padding: 16,
+            marginVertical: 8,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Text style={{ fontSize: 24 }}>🛍️</Text>
+            <View>
+              <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "800", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+                Tienda de Skins
+              </Text>
+              <Text style={{ color: "rgba(0,0,0,0.6)", fontSize: 12, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
+                Personaliza tu vehiculo y perfil
+              </Text>
+            </View>
+          </View>
+          <Text style={{ color: "#1A1A1A", fontSize: 20, fontWeight: "700" }}>›</Text>
+        </Pressable>
+
         <Section title="More Ways to Earn">
           <View style={{ gap: 10 }}>
             <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>

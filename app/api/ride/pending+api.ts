@@ -69,6 +69,7 @@ export async function GET(request: Request) {
     };
 
     // Get pending rides (no driver assigned yet)
+    // Only include phone if user has opted to share it with drivers
     const pendingRides = await sql`
       SELECT
         r.ride_id,
@@ -82,7 +83,9 @@ export async function GET(request: Request) {
         r.ride_time,
         r.created_at,
         u.name as user_name,
-        u.id as user_id
+        u.id as user_id,
+        CASE WHEN u.share_phone_with_driver = true THEN u.phone ELSE NULL END as user_phone,
+        COALESCE(u.share_phone_with_driver, false) as phone_shared
       FROM rides r
       LEFT JOIN users u ON r.user_id = u.id
       WHERE r.driver_id IS NULL

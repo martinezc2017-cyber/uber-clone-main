@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback, memo } from "react";
 import {
   View,
@@ -10,9 +10,13 @@ import {
   Platform,
   Modal,
   Alert,
+  Image,
+  GestureResponderEvent,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
+import { ImageSourcePropType } from "react-native";
+import DriverCarMarker from "./DriverCarMarker";
 
 // Dark map style for Google Maps - tuned to a deep navy look with good transparency
 const darkMapStyle = [
@@ -38,6 +42,30 @@ const darkMapStyle = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
   { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "off" }] },
 ];
+
+// Route colors - TORO gold theme
+const ROUTE_COLORS = {
+  upcoming: "#C9A55C", // TORO gold
+  upcomingGlow: "rgba(201, 165, 92, 0.25)",
+  passed: "rgba(100, 100, 100, 0.3)", // Faded gray
+};
+
+// Find closest point index on route to current position
+const findClosestRouteIndex = (route: RouteCoordinate[], position: RouteCoordinate): number => {
+  if (!route.length || !position) return 0;
+  let minDist = Infinity;
+  let closestIdx = 0;
+  for (let i = 0; i < route.length; i++) {
+    const dx = route[i].latitude - position.latitude;
+    const dy = route[i].longitude - position.longitude;
+    const dist = dx * dx + dy * dy;
+    if (dist < minDist) {
+      minDist = dist;
+      closestIdx = i;
+    }
+  }
+  return closestIdx;
+};
 
 type RouteCoordinate = {
   latitude: number;
@@ -99,20 +127,20 @@ const getNextStreetName = (instruction?: string): string => {
 
 const getTurnArrow = (maneuver?: string): string => {
   const arrows: Record<string, string> = {
-    "turn-left": "?",
-    "turn-right": "?",
-    "slight left": "?",
-    "slight right": "?",
-    "sharp left": "?",
-    "sharp right": "?",
-    uturn: "?",
-    roundabout: "?",
-    arrive: "?",
-    depart: "?",
-    straight: "?",
-    merge: "?",
+    "turn-left": "←",
+    "turn-right": "→",
+    "slight left": "↖",
+    "slight right": "↗",
+    "sharp left": "↰",
+    "sharp right": "↱",
+    uturn: "⤵",
+    roundabout: "⟳",
+    arrive: "✓",
+    depart: "•",
+    straight: "↑",
+    merge: "↗",
   };
-  return arrows[maneuver ?? ""] || "?";
+  return arrows[maneuver ?? ""] || "↑";
 };
 
 // Calculate bearing for camera rotation
@@ -150,6 +178,8 @@ const TargetMarker = memo(({ latitude, longitude }: { latitude: number; longitud
   </Marker>
 ));
 
+const carMarkerAsset: ImageSourcePropType = require("../assets/skins/cars/driver-car-3d.png");
+
 export default function OSMNavigation({
   targetLatitude,
   targetLongitude,
@@ -172,19 +202,88 @@ export default function OSMNavigation({
   const mapRef = useRef<MapView>(null);
   const [currentLocation, setCurrentLocation] = useState<RouteCoordinate | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<RouteCoordinate[]>([]);
+  const [steps, setSteps] = useState<any[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [eta, setEta] = useState(5);
   const [distance, setDistance] = useState(1);
   const [arrived, setArrived] = useState(false);
   const [currentStep, setCurrentStep] = useState<NavigationStep | null>(null);
   const [isFollowing, setIsFollowing] = useState(true);
+  // MAP CAMERA ONLY
+  type CameraMode = "IDLE" | "PLANNING" | "ON_TRIP" | "FREE";
+  const [cameraMode, setCameraMode] = useState<CameraMode>("IDLE");
+  const didSetInitialCameraRef = useRef(false);
+  const planningDoneRef = useRef(false);
+  const bottomPadding = 280; // Ajusta a la altura de tu bottom sheet
+  const followThrottleMs = 900; // 700–1500ms
+  const followPitch = 55;
+  const followZoom = 17;
   const [heading, setHeading] = useState(0);
+  const [smoothHeading, setSmoothHeading] = useState(0);
   const [showNavOptions, setShowNavOptions] = useState(false);
   const [arrivalNotified, setArrivalNotified] = useState(false);
   const [tripStarted, setTripStarted] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
   const waitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastReportedWaitRef = useRef(0);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const headingAnimRef = useRef<any>(null);
+  const prevHeadingRef = useRef(0);
+  const lastCameraRef = useRef<{ lat: number | null; lon: number | null; heading: number | null }>({
+    lat: null,
+    lon: null,
+    heading: null,
+  });
+  const lastAnimTimeRef = useRef<number>(0);
+
+  // Smooth heading interpolation for natural camera rotation like Google Maps
+  useEffect(() => {
+    if (headingAnimRef.current) {
+      clearInterval(headingAnimRef.current);
+    }
+
+    const targetHeading = heading;
+    let currentHeading = prevHeadingRef.current;
+
+    // Calculate shortest rotation direction (handle 0/360 wraparound)
+    let diff = targetHeading - currentHeading;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+
+    // Skip animation for very small changes
+    if (Math.abs(diff) < 2) {
+      setSmoothHeading(targetHeading);
+      prevHeadingRef.current = targetHeading;
+      return;
+    }
+
+    // Smooth interpolation over 400ms (16 steps at ~25ms each)
+    const steps = 16;
+    const stepAmount = diff / steps;
+    let step = 0;
+
+    headingAnimRef.current = setInterval(() => {
+      step++;
+      currentHeading += stepAmount;
+      // Normalize to 0-360
+      currentHeading = ((currentHeading % 360) + 360) % 360;
+      setSmoothHeading(currentHeading);
+
+      if (step >= steps) {
+        clearInterval(headingAnimRef.current);
+        setSmoothHeading(targetHeading);
+        prevHeadingRef.current = targetHeading;
+      }
+    }, 25);
+
+    return () => {
+      if (headingAnimRef.current) {
+        clearInterval(headingAnimRef.current);
+      }
+    };
+  }, [heading]);
 
   // Location setup
   useEffect(() => {
@@ -207,7 +306,17 @@ export default function OSMNavigation({
         }
 
         setCurrentLocation(coords);
-        setHeading(calculateBearing(coords.latitude, coords.longitude, targetLatitude, targetLongitude));
+        const initialTarget =
+          steps[currentStepIndex]?.maneuverLocation ??
+          { latitude: targetLatitude, longitude: targetLongitude };
+        setHeading(
+          calculateBearing(
+            coords.latitude,
+            coords.longitude,
+            initialTarget.latitude,
+            initialTarget.longitude
+          )
+        );
 
         // Watch updates - less frequent for performance
         subscription = await Location.watchPositionAsync(
@@ -217,7 +326,49 @@ export default function OSMNavigation({
             if (getDistanceInMiles(newCoords.latitude, newCoords.longitude, targetLatitude, targetLongitude) > 100) return;
 
             setCurrentLocation(newCoords);
-            setHeading(calculateBearing(newCoords.latitude, newCoords.longitude, targetLatitude, targetLongitude));
+
+            const nextTarget =
+              steps[currentStepIndex]?.maneuverLocation ??
+              { latitude: targetLatitude, longitude: targetLongitude };
+            setHeading(
+              calculateBearing(
+                newCoords.latitude,
+                newCoords.longitude,
+                nextTarget.latitude,
+                nextTarget.longitude
+              )
+            );
+
+            // Improved step detection (Google Maps style)
+            if (steps.length > 0) {
+              const distToStep = getDistanceInMeters(
+                newCoords.latitude,
+                newCoords.longitude,
+                nextTarget.latitude,
+                nextTarget.longitude
+              );
+
+              // Advance when within 20m (more responsive)
+              if (distToStep < 20 && currentStepIndex < steps.length - 1) {
+                setCurrentStepIndex((i) => Math.min(i + 1, steps.length - 1));
+              }
+
+              // Also: if we're closer to the NEXT step than current, advance
+              if (distToStep < 50 && currentStepIndex < steps.length - 1) {
+                const nextManeuver = steps[currentStepIndex + 1]?.maneuverLocation;
+                if (nextManeuver) {
+                  const distToNext = getDistanceInMeters(
+                    newCoords.latitude,
+                    newCoords.longitude,
+                    nextManeuver.latitude,
+                    nextManeuver.longitude
+                  );
+                  if (distToNext < distToStep) {
+                    setCurrentStepIndex((i) => Math.min(i + 1, steps.length - 1));
+                  }
+                }
+              }
+            }
 
             const distMeters = getDistanceInMeters(newCoords.latitude, newCoords.longitude, targetLatitude, targetLongitude);
             const threshold = phaseLabel === "Pickup" ? 5 : 50;
@@ -233,7 +384,7 @@ export default function OSMNavigation({
 
     setup();
     return () => { subscription?.remove(); };
-  }, [targetLatitude, targetLongitude]);
+  }, [targetLatitude, targetLongitude, steps, currentStepIndex]);
 
   // Fetch route from OSRM (free)
   useEffect(() => {
@@ -252,16 +403,31 @@ export default function OSMNavigation({
           setEta(Math.round(route.duration / 60));
           setDistance(route.distance / 1609.34);
 
-          // Get first meaningful step
-          const steps = route.legs?.[0]?.steps;
-          if (steps?.length > 0) {
-            const step = steps.find((s: any) => s.maneuver?.type !== "depart") || steps[0];
-            setCurrentStep({
-              instruction: step.maneuver?.instruction || `Head to ${targetAddress.split(",")[0]}`,
-              distance: step.distance,
-              maneuver: step.maneuver?.type,
-            });
-          }
+          const legSteps = route.legs?.[0]?.steps || [];
+          const parsedSteps = legSteps.map((s: any) => ({
+            instruction: s.maneuver?.instruction || "",
+            distance: s.distance,
+            maneuver: s.maneuver?.type,
+            maneuverLocation: {
+              latitude: s.maneuver?.location?.[1],
+              longitude: s.maneuver?.location?.[0],
+            },
+            lanes:
+              s.intersections?.find((i: any) => i?.lanes?.length)?.lanes ??
+              [],
+          }));
+          setSteps(parsedSteps);
+          const firstStep =
+            parsedSteps.find((s: any) => s.maneuver !== "depart") ||
+            parsedSteps[0] ||
+            null;
+          setCurrentStep(firstStep || null);
+          setCurrentStepIndex(
+            Math.max(
+              0,
+              parsedSteps.findIndex((s: any) => s === firstStep)
+            )
+          );
         }
       } catch (e) {
         console.warn("Route error:", e);
@@ -275,53 +441,190 @@ export default function OSMNavigation({
     return () => clearInterval(interval);
   }, [currentLocation?.latitude, currentLocation?.longitude, targetLatitude, targetLongitude]);
 
-  // Camera follow - 3D tilted view, route pointing up
+  // Sync current step when index changes
   useEffect(() => {
-    if (!mapRef.current || !currentLocation || !isFollowing) return;
+    if (steps.length === 0) return;
+    const step = steps[currentStepIndex];
+    if (step) {
+      setCurrentStep({
+        instruction: step.instruction,
+        distance: step.distance,
+        maneuver: step.maneuver,
+      });
+    }
+  }, [currentStepIndex, steps]);
 
-    // Animate camera with 3D tilt, heading towards destination
+  // Camera follow with smooth heading rotation (Google Maps style)
+  useEffect(() => {
+    // MAP CAMERA ONLY
+    if (!mapReady) return;
+    if (!mapRef.current || !currentLocation) return;
+    if (cameraMode !== "ON_TRIP") return;
+    if (!isFollowing) return;
+
+    // Skip tiny updates to prevent jitter/spin
+    const lastLat = lastCameraRef.current.lat;
+    const lastLon = lastCameraRef.current.lon;
+    const lastHeading = lastCameraRef.current.heading;
+
+    const hasLast = lastLat != null && lastLon != null && lastHeading != null;
+    if (hasLast) {
+      const moveMeters = getDistanceInMeters(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        lastLat as number,
+        lastLon as number
+      );
+      // Normalize heading delta to shortest path
+      let hDelta = smoothHeading - (lastHeading as number);
+      if (hDelta > 180) hDelta -= 360;
+      if (hDelta < -180) hDelta += 360;
+
+      // Ignore negligible changes (<= 8m and <= 5°)
+      if (moveMeters <= 8 && Math.abs(hDelta) <= 5) {
+        return;
+      }
+
+      // Throttle camera animations
+      const now = Date.now();
+      if (now - lastAnimTimeRef.current < followThrottleMs) {
+        return;
+      }
+    }
+
+    // Animate camera with smooth heading (keep existing pitch to avoid up/down effect)
     mapRef.current.animateCamera({
       center: currentLocation,
-      pitch: 60, // 3D tilt angle
-      heading: heading, // Rotate so route points up
-      zoom: 17,
-    }, { duration: 600 });
-  }, [currentLocation, isFollowing, heading]);
+      heading: smoothHeading,
+      pitch: followPitch,
+      zoom: followZoom,
+    }, { duration: 350 });
 
-  // Set initial camera position
+    // Save last camera state
+    lastCameraRef.current.lat = currentLocation.latitude;
+    lastCameraRef.current.lon = currentLocation.longitude;
+    lastCameraRef.current.heading = smoothHeading;
+    lastAnimTimeRef.current = Date.now();
+  }, [mapReady, cameraMode, currentLocation?.latitude, currentLocation?.longitude, isFollowing, smoothHeading]);
+
+  // MAP CAMERA ONLY — IDLE initial camera (run once, after map is ready)
   useEffect(() => {
-    if (!mapRef.current || !currentLocation || heading === 0) return;
+    if (!mapReady) return;
+    if (!mapRef.current) return;
+    if (!currentLocation) return;
+    if (didSetInitialCameraRef.current) return;
 
-    // Initial camera setup with 3D view
-    setTimeout(() => {
-      mapRef.current?.animateCamera({
-        center: currentLocation,
-        pitch: 60,
-        heading: heading,
-        zoom: 17,
-      }, { duration: 1000 });
-    }, 500);
-  }, [currentLocation !== null, heading]);
+    didSetInitialCameraRef.current = true;
+
+    requestAnimationFrame(() => {
+      mapRef.current?.animateCamera(
+        {
+          center: currentLocation,
+          pitch: followPitch,
+          heading: smoothHeading,
+          zoom: followZoom,
+        },
+        { duration: 700 }
+      );
+
+      // Initialize last camera state
+      lastCameraRef.current.lat = currentLocation.latitude;
+      lastCameraRef.current.lon = currentLocation.longitude;
+      lastCameraRef.current.heading = smoothHeading;
+
+      // Default to follow after initial set
+      setCameraMode("ON_TRIP");
+      setIsFollowing(true);
+    });
+  }, [mapReady, currentLocation?.latitude, currentLocation?.longitude]);
+
 
   const centerOnUser = useCallback(() => {
     if (!mapRef.current || !currentLocation) return;
     setIsFollowing(true);
+    setCameraMode("ON_TRIP"); // MAP CAMERA ONLY
     mapRef.current.animateCamera({
       center: currentLocation,
-      pitch: 60,
-      heading: heading,
-      zoom: 17,
-    }, { duration: 500 });
-  }, [currentLocation, heading]);
+      heading: smoothHeading,
+      pitch: followPitch,
+      zoom: followZoom,
+    }, { duration: 400 });
+  }, [currentLocation, smoothHeading]);
 
   const showOverview = useCallback(() => {
     if (!mapRef.current || !currentLocation) return;
     setIsFollowing(false);
-    mapRef.current.fitToCoordinates(
-      [currentLocation, { latitude: targetLatitude, longitude: targetLongitude }],
-      { edgePadding: { top: 150, right: 50, bottom: 250, left: 50 }, animated: true }
-    );
-  }, [currentLocation, targetLatitude, targetLongitude]);
+    setCameraMode("PLANNING"); // MAP CAMERA ONLY
+    planningDoneRef.current = false;
+    if (!mapReady) {
+      const mid = {
+        latitude: (currentLocation.latitude + targetLatitude) / 2,
+        longitude: (currentLocation.longitude + targetLongitude) / 2,
+      };
+      mapRef.current.animateCamera({
+        center: mid,
+        heading: smoothHeading,
+        zoom: 14,
+      }, { duration: 400 });
+    }
+  }, [currentLocation, targetLatitude, targetLongitude, mapReady]);
+  // MAP CAMERA ONLY — PLANNING fit (only once per entry)
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!mapRef.current) return;
+    if (!currentLocation) return;
+    if (cameraMode !== "PLANNING") return;
+    if (planningDoneRef.current) return;
+
+    const points = [
+      currentLocation,
+      { latitude: targetLatitude, longitude: targetLongitude },
+    ];
+
+    requestAnimationFrame(() => {
+      mapRef.current?.fitToCoordinates(points, {
+        edgePadding: { top: 90, right: 60, bottom: bottomPadding, left: 60 },
+        animated: true,
+      });
+      planningDoneRef.current = true;
+    });
+  }, [
+    cameraMode,
+    mapReady,
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+    targetLatitude,
+    targetLongitude,
+    bottomPadding,
+  ]);
+
+
+  // Idle timer: si no hay interacción en 10s, mostrar overview (dos puntos en vista)
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      showOverview();
+    }, 30000);
+  }, [showOverview]);
+
+  useEffect(() => {
+    resetIdleTimer();
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, [resetIdleTimer]);
+
+  const handleTouch = (_e: GestureResponderEvent) => {
+    resetIdleTimer();
+  };
+
+  // Split route into passed and upcoming segments (Google Maps style)
+  const closestIdx = currentLocation ? findClosestRouteIndex(routeCoordinates, currentLocation) : 0;
+  const routePassed = routeCoordinates.slice(0, Math.min(closestIdx + 1, routeCoordinates.length));
+  const routeUpcoming = routeCoordinates.slice(closestIdx);
 
   // Wait timer once arrival is notified (pickup)
   useEffect(() => {
@@ -444,6 +747,22 @@ export default function OSMNavigation({
   const turnArrow = getTurnArrow(currentStep?.maneuver);
   const distanceToTargetM =
     currentLocation ? getDistanceInMeters(currentLocation.latitude, currentLocation.longitude, targetLatitude, targetLongitude) : null;
+  const nextStepDistM = currentStep?.distance ?? null;
+  const laneGuidance = (() => {
+    const step = steps[currentStepIndex];
+    const lanes = step?.lanes;
+    if (!lanes || lanes.length === 0) return null;
+    const arrows = lanes
+      .map((l: any) => {
+        if (l.indications?.includes("left")) return "←";
+        if (l.indications?.includes("right")) return "→";
+        if (l.indications?.includes("straight")) return "↑";
+        if (l.indications?.includes("uturn")) return "⤵";
+        return "•";
+      })
+      .join(" ");
+    return arrows;
+  })();
   const withinPickupRadius = phaseLabel === "Pickup" && distanceToTargetM !== null && distanceToTargetM <= 20;
   const freeSeconds = Math.max(0, pickupFreeMinutes * 60);
   const paidSeconds = Math.max(0, waitSeconds - freeSeconds);
@@ -514,29 +833,53 @@ export default function OSMNavigation({
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
-        onPanDrag={() => setIsFollowing(false)}
+        onPanDrag={() => {
+          setIsFollowing(false);
+          setCameraMode("FREE"); // MAP CAMERA ONLY
+          resetIdleTimer();
+        }}
+        onMapReady={() => setMapReady(true)}
+        onTouchStart={handleTouch}
       >
 
-        {/* Route line - bright cyan/light blue like Apple CarPlay */}
-        {routeCoordinates.length > 1 && (
-          <>
-            {/* Outer glow effect */}
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="rgba(14,165,233,0.35)"
-              strokeWidth={12}
-              lineCap="round"
-              lineJoin="round"
-            />
-            {/* Main route line */}
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#0ea5e9"
-              strokeWidth={7}
-              lineCap="round"
-              lineJoin="round"
-            />
-          </>
+        {/* Driver marker - Google Maps style arrow */}
+        {currentLocation && (
+          <Marker coordinate={currentLocation} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false}>
+            <DriverCarMarker size={52} rotation={smoothHeading} variant="arrow" />
+          </Marker>
+        )}
+
+        {/* Passed route - faded gray */}
+        {routePassed.length > 1 && (
+          <Polyline
+            coordinates={routePassed}
+            strokeColor={ROUTE_COLORS.passed}
+            strokeWidth={4}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+
+        {/* Upcoming route - glow effect */}
+        {routeUpcoming.length > 1 && (
+          <Polyline
+            coordinates={routeUpcoming}
+            strokeColor={ROUTE_COLORS.upcomingGlow}
+            strokeWidth={12}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+
+        {/* Upcoming route - main line (TORO gold) */}
+        {routeUpcoming.length > 1 && (
+          <Polyline
+            coordinates={routeUpcoming}
+            strokeColor={ROUTE_COLORS.upcoming}
+            strokeWidth={6}
+            lineCap="round"
+            lineJoin="round"
+          />
         )}
 
         {/* Target marker */}
@@ -546,13 +889,18 @@ export default function OSMNavigation({
       {/* Top safety / status bar */}
       <View style={styles.topBar}>
         <Pressable style={styles.statusPill} onPress={showOverview}>
-          <Text style={styles.statusLabel}>{phaseLabel === "Pickup" ? "Ir a recogida" : "Ir a destino"}</Text>
+          <Text style={styles.statusLabel}>
+            {turnArrow} {nextStreet || "Siguiente giro"} � {formatDist(nextStepDistM ?? 0)}
+          </Text>
           <Text style={styles.statusValue}>
-            {turnArrow} {nextStreet}
+            {phaseLabel === "Pickup" ? "En ruta a recogida" : "En ruta a destino"} � {eta} min
           </Text>
-          <Text style={styles.statusSub}>
-            {eta} min | {distance.toFixed(1)} mi
-          </Text>
+          {laneGuidance && (
+            <Text style={[styles.statusSub, { color: "#e2e8f0" }]}>
+              Carriles: {laneGuidance}
+            </Text>
+          )}
+          <Text style={styles.statusSub}>{eta} min | {distance.toFixed(1)} mi</Text>
         </Pressable>
         <Pressable style={styles.sosBtn}>
           <Text style={styles.sosText}>SOS</Text>
@@ -634,7 +982,7 @@ export default function OSMNavigation({
         <Pressable style={[styles.controlBtn, !isFollowing && styles.controlActive]} onPress={showOverview}>
           <Text style={styles.controlIcon}>FIT</Text>
         </Pressable>
-        <Pressable style={[styles.controlBtn, isFollowing && styles.controlActive]} onPress={centerOnUser}>
+        <Pressable style={[styles.controlBtn, isFollowing && styles.controlActive]} onPress={() => { centerOnUser(); resetIdleTimer(); }}>
           <Text style={styles.controlIcon}>CTR</Text>
         </Pressable>
         <Pressable style={styles.controlBtn} onPress={() => setShowNavOptions(true)}>
@@ -916,3 +1264,5 @@ const styles = StyleSheet.create({
   },
   chatBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });
+
+

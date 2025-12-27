@@ -1,13 +1,28 @@
 import { Stack } from "expo-router";
+import { View } from "react-native";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 const Layout = () => {
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
+
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="find-ride" options={{ headerShown: false }} />
-      <Stack.Screen name="confirm-ride" options={{ headerShown: false }} />
-      <Stack.Screen name="book-ride" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+          animation: "fade",
+        }}
+      >
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="find-ride" />
+        <Stack.Screen name="confirm-ride" />
+        <Stack.Screen name="book-ride" />
+        <Stack.Screen name="pick-location" />
+      </Stack>
+    </View>
   );
 };
 

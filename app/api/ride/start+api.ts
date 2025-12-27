@@ -13,8 +13,7 @@ export async function POST(request: Request) {
     const updated = await sql`
       UPDATE rides
       SET
-        ride_status = 'in_progress',
-        started_at = COALESCE(started_at, NOW())
+        ride_status = 'in_progress'
       WHERE ride_id = ${rideId}
       RETURNING *;
     `;

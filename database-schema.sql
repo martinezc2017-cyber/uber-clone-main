@@ -79,7 +79,18 @@ BEGIN
     END IF;
 END $$;
 
--- Pricing config table (single-row, editable from admin dashboard)
+-- Add trip_number column for sequential numbering per user
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'rides' AND column_name = 'trip_number'
+    ) THEN
+        ALTER TABLE rides ADD COLUMN trip_number INTEGER;
+        CREATE INDEX idx_rides_user_trip ON rides(user_id, trip_number);
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS pricing_config (
     id INTEGER PRIMARY KEY,
     base_fare DECIMAL(10, 2) NOT NULL,
@@ -143,6 +154,13 @@ BEGIN
         WHERE table_name = 'rides' AND column_name = 'cancellation_fee'
     ) THEN
         ALTER TABLE rides ADD COLUMN cancellation_fee DECIMAL(10, 2) DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'rides' AND column_name = 'cancellation_reason'
+    ) THEN
+        ALTER TABLE rides ADD COLUMN cancellation_reason TEXT;
     END IF;
 END $$;
 
@@ -232,3 +250,21 @@ CREATE TABLE IF NOT EXISTS ride_messages (
 CREATE INDEX IF NOT EXISTS idx_ride_messages_ride_id ON ride_messages(ride_id);
 CREATE INDEX IF NOT EXISTS idx_ride_messages_created_at ON ride_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ride_messages_sender ON ride_messages(sender_type, sender_id);
+
+-- User contact preferences and phone
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'phone'
+    ) THEN
+        ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'share_phone_with_driver'
+    ) THEN
+        ALTER TABLE users ADD COLUMN share_phone_with_driver BOOLEAN DEFAULT false;
+    END IF;
+END $$;

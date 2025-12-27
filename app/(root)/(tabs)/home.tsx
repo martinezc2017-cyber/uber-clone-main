@@ -1,4 +1,4 @@
-import { useUser } from "@clerk/clerk-expo";
+﻿import { useUser } from "@clerk/clerk-expo";
 import { useAuth } from "@clerk/clerk-expo";
 import * as Location from "expo-location";
 import { router } from "expo-router";
@@ -12,59 +12,29 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import GoogleTextInput from "@/components/GoogleTextInput";
 import Map from "@/components/Map";
 import RideCard from "@/components/RideCard";
 import { icons, images } from "@/constants";
+import Screen from "@/components/layout/Screen";
+import { GlassCard, InnerCard, useGlassStyle, useTextColors } from "@/components/layout/GlassCard";
 import { useFetch, fetchAPI } from "@/lib/fetch";
 import { useLocationStore, useDriverStore } from "@/store";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 import { Ride } from "@/types/type";
 
-const decodePolyline = (encoded: string, precision = 5) => {
-  const factor = Math.pow(10, precision);
-  const points: { latitude: number; longitude: number }[] = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-
-  while (index < encoded.length) {
-    let b;
-    let shift = 0;
-    let result = 0;
-
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lng += dlng;
-
-    points.push({ latitude: lat / factor, longitude: lng / factor });
-  }
-
-  return points;
-};
+// No decodificamos rutas en mini-mapa; sin líneas azules
 
 const Home = () => {
   const { user } = useUser();
   const { signOut } = useAuth();
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
+  const glassStyle = useGlassStyle();
+  const textColors = useTextColors();
 
   const { setUserLocation, setDestinationLocation, clearDestinationLocation } = useLocationStore();
   const { setDrivers } = useDriverStore();
@@ -79,11 +49,54 @@ const Home = () => {
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [checkingActiveRide, setCheckingActiveRide] = useState(true);
   const [rideExpanded, setRideExpanded] = useState(true);
-  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  // Sin ruta en mini-mapa; evitamos cálculos/red innecesarios
   const [cancelling, setCancelling] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastMessage, setLastMessage] = useState<{ text: string; at: string } | null>(null);
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const arrowRotation = rideExpanded ? "180deg" : "0deg";
+  const isValidCoord = (lat?: number | null, lng?: number | null) =>
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180 &&
+    !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001);
+  const hasDriverLocation =
+    driverLocation &&
+    isValidCoord(driverLocation.latitude, driverLocation.longitude);
+  const miniRegion =
+    activeRide?.destination_latitude && activeRide?.destination_longitude
+      ? (() => {
+          const points = [];
+          if (driverLocation) {
+            points.push(driverLocation);
+          } else if (activeRide.origin_latitude && activeRide.origin_longitude) {
+            points.push({
+              latitude: Number(activeRide.origin_latitude),
+              longitude: Number(activeRide.origin_longitude),
+            });
+          }
+          points.push({
+            latitude: Number(activeRide.destination_latitude),
+            longitude: Number(activeRide.destination_longitude),
+          });
+
+          const lats = points.map((p) => p.latitude);
+          const lngs = points.map((p) => p.longitude);
+          const minLat = Math.min(...lats);
+          const maxLat = Math.max(...lats);
+          const minLng = Math.min(...lngs);
+          const maxLng = Math.max(...lngs);
+          return {
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLng + maxLng) / 2,
+            latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.02),
+            longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.02),
+          };
+        })()
+      : null;
 
   const {
     data: recentRides,
@@ -119,44 +132,39 @@ const Home = () => {
     checkActiveRide();
   }, [user?.id]);
 
-  // Fetch mini-map route for the active ride
-  useEffect(() => {
-    const fetchRoute = async () => {
-      if (!activeRide?.origin_latitude || !activeRide?.destination_latitude) {
-        setRouteCoords([]);
-        return;
-      }
+  // Sin solicitud de ruta para mini-mapa
 
+  // Poll last driver location for the active ride
+  useEffect(() => {
+    if (!activeRide?.ride_id || !activeRide?.driver_id) {
+      setDriverLocation(null);
+      return;
+    }
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const poll = async () => {
       try {
-        const origin = `${activeRide.origin_longitude},${activeRide.origin_latitude}`;
-        const destination = `${activeRide.destination_longitude},${activeRide.destination_latitude}`;
-        const res = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${origin};${destination}?overview=full&geometries=polyline`
-        );
-        if (!res.ok) {
-          setRouteCoords([
-            { latitude: Number(activeRide.origin_latitude), longitude: Number(activeRide.origin_longitude) },
-            { latitude: Number(activeRide.destination_latitude), longitude: Number(activeRide.destination_longitude) },
-          ]);
-          return;
+        const res = await fetchAPI(`/api/ride/locations?ride_id=${activeRide.ride_id}`);
+        const rows = res?.data as any[];
+        if (Array.isArray(rows) && rows.length > 0) {
+          const last = rows[0];
+          const lat = Number(last?.lat);
+          const lng = Number(last?.lng);
+          if (isValidCoord(lat, lng)) {
+            setDriverLocation({ latitude: lat, longitude: lng });
+          }
         }
-        const data = await res.json();
-        const poly = data?.routes?.[0]?.geometry;
-        if (poly) {
-          const decoded = decodePolyline(poly, 5);
-          setRouteCoords(decoded);
-        }
-      } catch (err) {
-        console.warn("mini route error", err);
-        setRouteCoords([
-          { latitude: Number(activeRide.origin_latitude), longitude: Number(activeRide.origin_longitude) },
-          { latitude: Number(activeRide.destination_latitude), longitude: Number(activeRide.destination_longitude) },
-        ]);
+      } catch (e) {
+        console.warn("poll driver location error", e);
       }
     };
 
-    fetchRoute();
-  }, [activeRide?.origin_latitude, activeRide?.origin_longitude, activeRide?.destination_latitude, activeRide?.destination_longitude]);
+    poll();
+    timer = setInterval(poll, 5000);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [activeRide?.ride_id, activeRide?.driver_id]);
 
   // Handle resuming active ride
   const handleResumeRide = useCallback(() => {
@@ -358,18 +366,20 @@ const Home = () => {
   };
 
   return (
-    <SafeAreaView className="bg-[#f5faf5]">
+    <Screen>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
         data={recentRides?.slice(0, 5)}
         renderItem={({ item }) => <RideCard ride={item} />}
         keyExtractor={(item, index) => index.toString()}
-        className="px-5"
+        style={{ paddingHorizontal: 20, backgroundColor: colors.bg }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingBottom: 100,
+          backgroundColor: colors.bg,
         }}
         ListEmptyComponent={() => (
-          <View className="flex flex-col items-center justify-center">
+          <View style={[glassStyle, { alignItems: "center", justifyContent: "center", paddingVertical: 32 }]}>
             {!loading ? (
               <>
                 <Image
@@ -378,80 +388,71 @@ const Home = () => {
                   alt="No recent rides found"
                   resizeMode="contain"
                 />
-                <Text className="text-sm">No recent rides found</Text>
+                <Text style={{ color: colors.muted, fontSize: 14, marginTop: 12 }}>No recent rides found</Text>
               </>
             ) : (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator size="small" color={colors.accent} />
             )}
           </View>
         )}
         ListHeaderComponent={
           <>
-            <View className="flex flex-row gap-2 mb-3">
-              <TouchableOpacity
-                onPress={() => router.push("/driver")}
-                className="bg-[#1db954] px-4 py-3 rounded-xl flex-1"
-              >
-                <Text className="text-white text-sm font-JakartaBold text-center">Driver App</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/admin")}
-                className="bg-[#a64ff3] px-4 py-3 rounded-xl flex-1"
-              >
-                <Text className="text-white text-sm font-JakartaBold text-center">Admin Panel</Text>
-              </TouchableOpacity>
-            </View>
             <View className="flex flex-row items-center justify-between my-5">
-              <Text className="text-3xl font-JakartaExtraBold">
-                Welcome {user?.firstName}👋
+              <Text style={{ color: colors.text }} className="text-3xl font-JakartaExtraBold">
+                Welcome {user?.firstName}
               </Text>
               <TouchableOpacity
                 onPress={handleSignOut}
-                className="justify-center items-center w-11 h-11 rounded-full bg-white shadow-sm"
+                style={[glassStyle, { padding: 0, width: 44, height: 44, alignItems: "center", justifyContent: "center" }]}
               >
-                <Image source={icons.out} className="w-4 h-4" />
+                <Image source={icons.out} className="w-4 h-4" style={{ tintColor: colors.text }} />
               </TouchableOpacity>
             </View>
 
             {/* Active Ride Collapsible Panel - below Welcome */}
             {activeRide && (
-              <View className="bg-white rounded-2xl mb-4 shadow-lg overflow-hidden border border-gray-200">
+              <View style={[glassStyle, { padding: 0, marginBottom: 16, overflow: "hidden" }]}>
                 {/* Header - always visible */}
                 <TouchableOpacity
                   onPress={() => setRideExpanded(!rideExpanded)}
-                  className="p-4"
+                  style={{ padding: 16 }}
                   activeOpacity={0.7}
                 >
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center flex-1">
-                      <View className={`w-3 h-3 rounded-full mr-3 ${
-                        activeRide.ride_status === "pending" ? "bg-yellow-500" :
-                        activeRide.ride_status === "accepted" ? "bg-blue-500" :
-                        "bg-green-500"
-                      }`} />
+                      <View style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        marginRight: 12,
+                        backgroundColor:
+                          activeRide.ride_status === "pending" ? colors.warning :
+                          activeRide.ride_status === "accepted" ? "#3b82f6" :
+                          colors.success
+                      }} />
                       <View className="flex-1">
-                        <Text className="text-xs text-gray-500 font-JakartaMedium">
+                        <Text style={{ color: colors.muted, fontSize: 12 }} className="font-JakartaMedium">
                           {activeRide.ride_status === "pending"
                             ? "Buscando conductor..."
                             : activeRide.ride_status === "accepted"
                               ? "Conductor en camino"
                               : "Viaje en progreso"}
                         </Text>
-                        <Text className="text-base font-JakartaBold text-gray-900" numberOfLines={1}>
+                        <Text style={{ color: colors.text, fontSize: 16 }} className="font-JakartaBold" numberOfLines={1}>
                           {activeRide.destination_address}
                         </Text>
                       </View>
                     </View>
                     <View className="flex-row items-center">
                       {unreadCount > 0 && (
-                        <View className="bg-red-500 px-2 py-1 rounded-full mr-3">
+                        <View style={{ backgroundColor: colors.danger }} className="px-2 py-1 rounded-full mr-3">
                           <Text className="text-white text-xs font-JakartaBold">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </Text>
                         </View>
                       )}
                       <View style={{ transform: [{ rotate: arrowRotation }] }}>
-                        <Image source={icons.arrowDown} className="w-5 h-5" />
+                        <Image source={icons.arrowDown} className="w-5 h-5" style={{ tintColor: colors.text }} />
                       </View>
                     </View>
                   </View>
@@ -459,18 +460,18 @@ const Home = () => {
 
                 {/* Expandable Content */}
                 {rideExpanded && (
-                  <View className="px-4 pb-4 border-t border-gray-100">
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
                     {/* Ride Details */}
-                    <View className="py-3 border-b border-gray-100">
+                    <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                       <View className="flex-row items-center mb-2">
-                        <Image source={icons.point} className="w-4 h-4 mr-2" />
-                        <Text className="text-sm text-gray-600 flex-1" numberOfLines={1}>
+                        <Image source={icons.point} className="w-4 h-4 mr-2" style={{ tintColor: colors.accent }} />
+                        <Text style={{ color: colors.muted, fontSize: 14 }} className="flex-1" numberOfLines={1}>
                           {activeRide.origin_address}
                         </Text>
                       </View>
                       <View className="flex-row items-center">
-                        <Image source={icons.to} className="w-4 h-4 mr-2" />
-                        <Text className="text-sm text-gray-600 flex-1" numberOfLines={1}>
+                        <Image source={icons.to} className="w-4 h-4 mr-2" style={{ tintColor: colors.success }} />
+                        <Text style={{ color: colors.muted, fontSize: 14 }} className="flex-1" numberOfLines={1}>
                           {activeRide.destination_address}
                         </Text>
                       </View>
@@ -478,100 +479,110 @@ const Home = () => {
 
                     {/* Driver Info if assigned */}
                     {activeRide.driver && (
-                      <View className="py-3 border-b border-gray-100 flex-row items-center">
+                      <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }} className="flex-row items-center">
                         <Image
                           source={{ uri: activeRide.driver.profile_image_url || "https://via.placeholder.com/40" }}
                           className="w-11 h-11 rounded-full mr-3"
+                          style={{ borderWidth: 2, borderColor: colors.accent }}
                         />
                         <View className="flex-1">
-                          <Text className="text-base font-JakartaSemiBold">
+                          <Text style={{ color: colors.text, fontSize: 16 }} className="font-JakartaSemiBold">
                             {activeRide.driver.first_name} {activeRide.driver.last_name}
                           </Text>
-                          <Text className="text-xs text-gray-500">
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
                             Rating: {activeRide.driver.rating?.toFixed(1) || "N/A"}
                           </Text>
                         </View>
-                        <Text className="text-lg font-JakartaBold text-green-600">
+                        <Text style={{ color: colors.success, fontSize: 18 }} className="font-JakartaBold">
                           ${activeRide.fare_price ? (Number(activeRide.fare_price) / 100).toFixed(2) : "0.00"}
                         </Text>
                       </View>
                     )}
 
                     {/* Mini mapa de ruta en progreso */}
-                    <View className="py-3 border-b border-gray-100">
-                      <Text className="text-sm font-JakartaSemiBold text-gray-800 mb-2">
+                    <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                      <Text style={{ color: colors.text, fontSize: 14 }} className="font-JakartaSemiBold mb-2">
                         Tu viaje sigue en proceso
                       </Text>
-                      <View style={{ height: 160 }} className="rounded-xl overflow-hidden">
-                        <MapView
-                          provider={PROVIDER_GOOGLE}
-                          style={{ flex: 1 }}
-                          initialRegion={{
-                            latitude: Number(activeRide.origin_latitude) || 0,
-                            longitude: Number(activeRide.origin_longitude) || 0,
-                            latitudeDelta: 0.04,
-                            longitudeDelta: 0.04,
-                          }}
-                          pointerEvents="none"
-                          showsTraffic
-                        >
-                          <Marker
-                            coordinate={{
-                              latitude: Number(activeRide.origin_latitude),
-                              longitude: Number(activeRide.origin_longitude),
+                      <View style={{ height: 180, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+                        {hasDriverLocation ? (
+                          <MapView
+                            provider={PROVIDER_GOOGLE}
+                            style={{ flex: 1 }}
+                            initialRegion={miniRegion || {
+                              latitude: driverLocation?.latitude || Number(activeRide.origin_latitude) || 0,
+                              longitude: driverLocation?.longitude || Number(activeRide.origin_longitude) || 0,
+                              latitudeDelta: 0.08,
+                              longitudeDelta: 0.08,
                             }}
-                            title="Origen"
-                          />
-                          <Marker
-                            coordinate={{
-                              latitude: Number(activeRide.destination_latitude),
-                              longitude: Number(activeRide.destination_longitude),
-                            }}
-                            title="Destino"
-                            pinColor="#1db954"
-                          />
-                          {routeCoords.length > 1 && (
-                            <Polyline
-                              coordinates={routeCoords}
-                              strokeColor="#0286ff"
-                              strokeWidth={4}
+                            region={miniRegion || undefined}
+                            pointerEvents="none"
+                            showsTraffic
+                          >
+                            <Marker
+                              coordinate={{
+                                latitude: Number(activeRide.destination_latitude),
+                                longitude: Number(activeRide.destination_longitude),
+                              }}
+                              title="Destino"
+                              pinColor={colors.success}
                             />
-                          )}
-                        </MapView>
+                            <Marker
+                              coordinate={driverLocation!}
+                              title="Conductor"
+                              pinColor={colors.accent}
+                            />
+                          </MapView>
+                        ) : (
+                          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
+                            <Text style={{ color: colors.muted, fontSize: 14 }}>
+                              Esperando ubicación del conductor...
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </View>
 
                     {/* Último mensaje del conductor */}
                     {lastMessage && (
-                      <View className="py-3 border-b border-gray-100">
+                      <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                         <View className="flex-row items-center justify-between mb-1">
-                          <Text className="text-sm font-JakartaSemiBold text-gray-800">Mensaje del conductor</Text>
+                          <Text style={{ color: colors.text, fontSize: 14 }} className="font-JakartaSemiBold">Mensaje del conductor</Text>
                           {unreadCount > 0 && (
-                            <View className="bg-red-500 px-2 py-0.5 rounded-full">
+                            <View style={{ backgroundColor: colors.danger }} className="px-2 py-0.5 rounded-full">
                               <Text className="text-white text-[11px] font-JakartaBold">
                                 {unreadCount > 9 ? "9+" : unreadCount}
                               </Text>
                             </View>
                           )}
                         </View>
-                        <Text className="text-sm text-gray-700" numberOfLines={2}>
+                        <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={2}>
                           {lastMessage.text}
                         </Text>
-                        <Text className="text-xs text-gray-400 mt-1">
+                        <Text style={{ color: colors.muted, fontSize: 12, opacity: 0.7, marginTop: 4 }}>
                           {new Date(lastMessage.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </Text>
                       </View>
                     )}
 
                     {/* Action Buttons */}
-                    <View className="flex-row gap-3 pt-3">
+                    <View style={{ flexDirection: "row", gap: 12, paddingTop: 12 }}>
                       <TouchableOpacity
                         onPress={handleResumeRide}
-                        style={{ backgroundColor: "#f3c94a" }}
-                        className="flex-1 py-3 rounded-lg"
+                        style={{
+                          backgroundColor: colors.accent,
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 12,
+                          shadowColor: colors.accent,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 8,
+                          elevation: 6,
+                        }}
                         activeOpacity={0.8}
                       >
-                        <Text style={{ color: "#1A1A1A" }} className="text-center font-JakartaSemiBold">
+                        <Text style={{ color: "#1A1A1A", textAlign: "center" }} className="font-JakartaSemiBold">
                           Ver Viaje
                         </Text>
                       </TouchableOpacity>
@@ -579,21 +590,23 @@ const Home = () => {
                         onPress={handleCancelRide}
                         disabled={cancelling}
                         style={{
-                          backgroundColor: "#fde8e8",
-                          borderColor: "#fbc8c8",
+                          backgroundColor: activeTheme === "dark" ? "rgba(239, 68, 68, 0.15)" : "#fde8e8",
+                          borderColor: activeTheme === "dark" ? "rgba(239, 68, 68, 0.3)" : "#fbc8c8",
                           borderWidth: 1,
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 12,
                         }}
-                        className="flex-1 py-3 rounded-lg"
                         activeOpacity={0.8}
                       >
                         {cancelling ? (
-                          <ActivityIndicator size="small" color="#ef4444" />
+                          <ActivityIndicator size="small" color={colors.danger} />
                         ) : (
                           <View>
-                            <Text className="text-red-500 text-center font-JakartaSemiBold text-sm">
+                            <Text style={{ color: colors.danger, textAlign: "center", fontSize: 14 }} className="font-JakartaSemiBold">
                               Cancelar
                             </Text>
-                            <Text className="text-red-400 text-center text-xs">
+                            <Text style={{ color: colors.danger, textAlign: "center", fontSize: 12, opacity: 0.7 }}>
                               Fee: $5.00
                             </Text>
                           </View>
@@ -604,13 +617,22 @@ const Home = () => {
                     {/* Chat button */}
                     <TouchableOpacity
                       onPress={() => router.push(`/(root)/ride-tracking?rideId=${activeRide.ride_id}`)}
-                      className="mt-3 bg-[#c8f4d4] py-3 rounded-lg flex-row items-center justify-center gap-2"
+                      style={{
+                        marginTop: 12,
+                        backgroundColor: activeTheme === "dark" ? "rgba(22, 163, 74, 0.15)" : "#c8f4d4",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                      }}
                       activeOpacity={0.8}
                     >
-                      <Image source={icons.chat} className="w-5 h-5" />
-                      <Text className="text-[#119c4a] font-JakartaSemiBold">Abrir Chat</Text>
+                      <Image source={icons.chat} className="w-5 h-5" style={{ tintColor: colors.success }} />
+                      <Text style={{ color: colors.success }} className="font-JakartaSemiBold">Abrir Chat</Text>
                       {unreadCount > 0 && (
-                        <View className="ml-2 bg-red-500 px-2 py-0.5 rounded-full">
+                        <View style={{ marginLeft: 8, backgroundColor: colors.danger, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
                           <Text className="text-white text-[11px] font-JakartaBold">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </Text>
@@ -625,28 +647,28 @@ const Home = () => {
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => router.push("/(root)/search")}
-              className="bg-white shadow-md shadow-neutral-300 rounded-2xl px-4 py-4 mb-2"
+              style={[glassStyle, { padding: 16, marginBottom: 8 }]}
             >
               <View className="flex-row items-center">
-                <Image source={icons.search} className="w-5 h-5 mr-3" />
+                <Image source={icons.search} className="w-5 h-5 mr-3" style={{ tintColor: colors.accent }} />
                 <View className="flex-1">
-                  <Text className="text-sm text-gray-400">Where do you want to go today?</Text>
-                  <Text className="text-xs text-gray-500 mt-1">Tap to search destination</Text>
+                  <Text style={{ color: colors.text, fontSize: 14 }}>Where do you want to go today?</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Tap to search destination</Text>
                 </View>
-                <Image source={icons.arrowUp} className="w-5 h-5 rotate-90" />
+                <Image source={icons.arrowUp} className="w-5 h-5 rotate-90" style={{ tintColor: colors.muted }} />
               </View>
             </TouchableOpacity>
 
             <>
-              <Text className="text-xl font-JakartaBold mt-5 mb-3">
+              <Text style={{ color: colors.text, fontSize: 20, marginTop: 20, marginBottom: 12 }} className="font-JakartaBold">
                 Your current location
               </Text>
-              <View className="flex flex-row items-center bg-transparent h-[300px]">
+              <View style={[glassStyle, { padding: 0, height: 300, overflow: "hidden" }]}>
                 {hasPermission ? (
-                  <Map />
+                  <Map showDestination={false} />
                 ) : (
-                  <View className="flex-1 items-center justify-center bg-white rounded-2xl p-4">
-                    <Text className="text-center text-sm font-JakartaRegular">
+                  <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+                    <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }} className="font-JakartaRegular">
                       {locationError ??
                         "Location permission is required to show your position. Please enable it in settings and reload the app."}
                     </Text>
@@ -655,14 +677,19 @@ const Home = () => {
               </View>
             </>
 
-            <Text className="text-xl font-JakartaBold mt-5 mb-3">
+            <Text style={{ color: colors.text, fontSize: 20, marginTop: 20, marginBottom: 12 }} className="font-JakartaBold">
               Recent Rides
             </Text>
           </>
         }
       />
     </SafeAreaView>
+    </Screen>
   );
 };
 
 export default Home;
+
+
+
+

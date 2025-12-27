@@ -1,0 +1,259 @@
+================================================================================
+INSTRUCCIONES PARA CHATGPT - SEPARAR RIDESHARE EN DOS APPS
+================================================================================
+
+CONTEXTO DEL PROYECTO:
+- Proyecto: Rideshare (clon de Uber)
+- Framework: React Native + Expo (Expo Router)
+- Ubicación: c:\Users\marti\Downloads\uber-clone-main\rideshare
+- Problema: Una sola app contiene tanto Driver como Rider, lo que hace el bundle grande y difícil de probar ambos roles simultáneamente
+
+================================================================================
+OBJETIVO:
+================================================================================
+Separar el proyecto en DOS aplicaciones independientes:
+1. TORO Driver (app/driver/*) - Para conductores
+2. TORO Rider (app/(root)/*) - Para pasajeros
+
+================================================================================
+ESTRUCTURA ACTUAL:
+================================================================================
+
+rideshare/
+├── app/
+│   ├── (api)/           # API routes (compartido)
+│   ├── (auth)/          # Auth screens (compartido)
+│   │   ├── sign-in.tsx
+│   │   ├── sign-up.tsx
+│   │   └── welcome.tsx
+│   ├── (root)/          # RIDER screens
+│   │   ├── (tabs)/
+│   │   │   ├── home.tsx
+│   │   │   ├── rides.tsx
+│   │   │   ├── chat.tsx
+│   │   │   └── profile.tsx
+│   │   ├── book-ride.tsx
+│   │   ├── confirm-ride.tsx
+│   │   ├── find-ride.tsx
+│   │   └── ride-tracking.tsx
+│   ├── driver/          # DRIVER screens
+│   │   ├── index.tsx
+│   │   ├── navigation.tsx
+│   │   ├── premium-nav.tsx
+│   │   ├── premium-nav-v2.tsx
+│   │   └── profile.tsx
+│   ├── _layout.tsx      # Root layout
+│   └── loading.tsx
+├── components/          # Componentes compartidos
+├── hooks/               # Hooks compartidos
+├── lib/                 # Utilities compartidas
+├── store/               # Zustand stores
+├── constants/           # Constantes
+└── assets/              # Imágenes y recursos
+
+================================================================================
+ESTRUCTURA DESEADA (DOS PROYECTOS):
+================================================================================
+
+uber-clone-main/
+├── toro-driver/         # APP CONDUCTOR
+│   ├── app/
+│   │   ├── (auth)/      # Copiar auth
+│   │   ├── (tabs)/      # Tabs del driver
+│   │   │   ├── home.tsx (actual driver/index.tsx)
+│   │   │   ├── rides.tsx
+│   │   │   └── profile.tsx
+│   │   ├── navigation.tsx
+│   │   ├── premium-nav.tsx
+│   │   └── _layout.tsx
+│   ├── components/      # Solo componentes de driver
+│   ├── hooks/           # Hooks compartidos + navigation hooks
+│   ├── lib/
+│   ├── store/
+│   └── package.json     # name: "toro-driver"
+│
+├── toro-rider/          # APP PASAJERO
+│   ├── app/
+│   │   ├── (auth)/      # Copiar auth
+│   │   ├── (tabs)/
+│   │   │   ├── home.tsx
+│   │   │   ├── rides.tsx
+│   │   │   ├── chat.tsx
+│   │   │   └── profile.tsx
+│   │   ├── book-ride.tsx
+│   │   ├── confirm-ride.tsx
+│   │   ├── find-ride.tsx
+│   │   ├── ride-tracking.tsx
+│   │   └── _layout.tsx
+│   ├── components/      # Solo componentes de rider
+│   ├── hooks/
+│   ├── lib/
+│   ├── store/
+│   └── package.json     # name: "toro-rider"
+
+================================================================================
+PASOS DETALLADOS:
+================================================================================
+
+PASO 1: Crear carpetas base
+- Crear carpeta toro-driver/ al mismo nivel que rideshare/
+- Crear carpeta toro-rider/ al mismo nivel que rideshare/
+
+PASO 2: Copiar archivos compartidos a AMBAS apps
+- package.json (modificar name)
+- app.json (modificar name, slug, scheme)
+- babel.config.js
+- metro.config.js
+- tailwind.config.js
+- tsconfig.json
+- .env
+- assets/ (completo)
+- lib/ (completo)
+- store/ (completo, pero filtrar lo innecesario)
+- constants/ (completo)
+- types/ (completo)
+
+PASO 3: TORO DRIVER - Copiar archivos específicos
+Desde app/driver/:
+- index.tsx -> app/(tabs)/home.tsx
+- navigation.tsx -> app/navigation.tsx
+- premium-nav.tsx -> app/premium-nav.tsx
+- premium-nav-v2.tsx -> app/premium-nav-v2.tsx
+- profile.tsx -> app/(tabs)/profile.tsx
+- fare-breakdown.tsx -> app/fare-breakdown.tsx
+
+Desde app/(auth)/:
+- Copiar completo a app/(auth)/
+
+Hooks especiales:
+- Copiar hooks/navigation/ completo (useLocation, useNavigationCamera, etc.)
+
+Componentes necesarios:
+- DriverCarMarker.tsx
+- Map.native.tsx
+- OSMNavigation.tsx
+- RideLayout.tsx
+
+PASO 4: TORO RIDER - Copiar archivos específicos
+Desde app/(root)/:
+- Copiar (tabs)/ completo
+- book-ride.tsx
+- confirm-ride.tsx
+- find-ride.tsx
+- ride-tracking.tsx
+- search.tsx
+- pin-location.tsx
+- pick-location.tsx
+
+Desde app/(auth)/:
+- Copiar completo a app/(auth)/
+
+Componentes necesarios:
+- GoogleTextInput.tsx
+- Map.native.tsx
+- RideCard.tsx
+- CustomButton.tsx
+- InputField.tsx
+- OAuth.tsx
+- Payment.tsx
+
+PASO 5: Modificar app.json en cada proyecto
+
+TORO DRIVER (toro-driver/app.json):
+{
+  "expo": {
+    "name": "TORO Driver",
+    "slug": "toro-driver",
+    "scheme": "toro-driver",
+    "android": {
+      "package": "com.toro.driver"
+    },
+    "ios": {
+      "bundleIdentifier": "com.toro.driver"
+    }
+  }
+}
+
+TORO RIDER (toro-rider/app.json):
+{
+  "expo": {
+    "name": "TORO",
+    "slug": "toro-rider",
+    "scheme": "toro-rider",
+    "android": {
+      "package": "com.toro.rider"
+    },
+    "ios": {
+      "bundleIdentifier": "com.toro.rider"
+    }
+  }
+}
+
+PASO 6: Modificar _layout.tsx de cada app
+- Remover la lógica de selección de rol (driver vs rider)
+- Hacer que vaya directo a las tabs correspondientes después de auth
+
+PASO 7: Limpiar imports y dependencias
+- Revisar cada archivo y remover imports que ya no existen
+- Actualizar paths relativos si es necesario
+
+================================================================================
+CONFIGURACIÓN PARA PROBAR AMBAS APPS SIMULTÁNEAMENTE:
+================================================================================
+
+Opción A: Dos terminales diferentes
+Terminal 1: cd toro-driver && npx expo start --port 8081
+Terminal 2: cd toro-rider && npx expo start --port 8082
+
+Opción B: Dos emuladores Android
+- Crear dos AVD en Android Studio (Pixel_Driver y Pixel_Rider)
+- Correr ambos emuladores
+- Cada app se instala en su propio emulador
+
+Opción C: Emulador + Dispositivo físico
+- Driver en emulador
+- Rider en teléfono real (o viceversa)
+
+================================================================================
+ARCHIVOS QUE SE PUEDEN ELIMINAR DESPUÉS DE SEPARAR:
+================================================================================
+
+En toro-driver/ eliminar:
+- Cualquier componente solo de rider (GoogleTextInput si no se usa, etc.)
+- Screens de rider que se hayan copiado por error
+
+En toro-rider/ eliminar:
+- DriverCarMarker.tsx
+- OSMNavigation.tsx
+- Hooks de navigation/ si no se usan
+- premium-nav relacionados
+
+================================================================================
+NOTAS IMPORTANTES:
+================================================================================
+
+1. BACKEND COMPARTIDO: Ambas apps usan el mismo backend/API, no hay que duplicarlo
+
+2. CLERK AUTH: Ambas apps pueden usar el mismo proyecto de Clerk, solo necesitan las mismas API keys
+
+3. NEON DATABASE: Base de datos compartida, no duplicar
+
+4. STRIPE: Configuración compartida
+
+5. GOOGLE MAPS API: Misma API key para ambas
+
+6. DEEP LINKING: Cada app tiene su propio scheme:
+   - toro-driver://
+   - toro-rider://
+
+================================================================================
+BENEFICIOS DE SEPARAR:
+================================================================================
+
+1. Bundle más pequeño (cada app solo tiene lo que necesita)
+2. Mejor rendimiento (menos código cargado)
+3. Fácil de probar ambos roles simultáneamente
+4. Actualizaciones independientes
+5. Permisos más específicos (driver necesita location siempre, rider solo cuando busca)
+
+================================================================================

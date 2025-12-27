@@ -7,16 +7,25 @@ import RideCard from "@/components/RideCard";
 import { images } from "@/constants";
 import { useFetch } from "@/lib/fetch";
 import { Ride } from "@/types/type";
+import Screen from "@/components/layout/Screen";
+import { useGlassStyle } from "@/components/layout/GlassCard";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 const Rides = () => {
   const { user } = useUser();
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
+  const glassStyle = useGlassStyle();
+
+  const rideHistoryUrl = user?.id ? `/api/ride/${user.id}` : "";
+  const activeRideUrl = user?.id ? `/api/ride/active?clerk_id=${user.id}` : "";
 
   const {
     data: recentRides,
     loading,
     error,
-  } = useFetch<Ride[]>(`/(api)/ride/${user?.id}`);
-  const { data: activeRide } = useFetch<Ride>(`/api/ride/active?clerk_id=${user?.id}`);
+  } = useFetch<Ride[]>(rideHistoryUrl);
+  const { data: activeRide } = useFetch<Ride>(activeRideUrl);
 
   const hasActive =
     !!activeRide &&
@@ -25,7 +34,8 @@ const Rides = () => {
     );
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <Screen>
+      <SafeAreaView className="flex-1">
       <FlatList
         data={recentRides}
         renderItem={({ item }) => <RideCard ride={item} />}
@@ -36,7 +46,7 @@ const Rides = () => {
           paddingBottom: 100,
         }}
         ListEmptyComponent={() => (
-          <View className="flex flex-col items-center justify-center">
+          <View style={[glassStyle, { alignItems: "center", justifyContent: "center", paddingVertical: 32 }]}>
             {!loading ? (
               <>
                 <Image
@@ -45,38 +55,50 @@ const Rides = () => {
                   alt="No recent rides found"
                   resizeMode="contain"
                 />
-                <Text className="text-sm">No recent rides found</Text>
+                <Text style={{ color: colors.muted, fontSize: 14, marginTop: 12 }}>No recent rides found</Text>
               </>
             ) : (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator size="small" color={colors.accent} />
             )}
           </View>
         )}
         ListHeaderComponent={
           <>
             {hasActive && (
-              <View className="bg-[#f5f9ff] border border-[#c8ddff] rounded-2xl p-4 mt-4">
-                <Text className="text-xs text-[#2563eb] font-JakartaBold mb-1">
+              <View style={[glassStyle, { marginTop: 16, borderLeftWidth: 4, borderLeftColor: colors.accent }]}>
+                <Text style={{ color: colors.accent, fontSize: 12, marginBottom: 4 }} className="font-JakartaBold">
                   Viaje en progreso
                 </Text>
-                <Text className="text-sm text-gray-700 mb-2">
+                <Text style={{ color: colors.muted, fontSize: 14, marginBottom: 12 }}>
                   Tienes un viaje activo que no ha terminado. Retómalo para ver el seguimiento.
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push("/(root)/book-ride")}
-                  className="bg-[#2563eb] rounded-full py-2 px-3 self-start"
+                  style={{
+                    backgroundColor: colors.accent,
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    alignSelf: "flex-start",
+                    shadowColor: colors.accent,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  }}
                   activeOpacity={0.8}
                 >
-                  <Text className="text-white text-sm font-JakartaSemiBold">Retomar viaje</Text>
+                  <Text style={{ color: "#1A1A1A", fontSize: 14 }} className="font-JakartaSemiBold">Retomar viaje</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            <Text className="text-2xl font-JakartaBold my-5">All Rides</Text>
+            <Text style={{ color: colors.text, fontSize: 24, marginVertical: 20 }} className="font-JakartaBold">All Rides</Text>
           </>
         }
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </Screen>
   );
 };
 

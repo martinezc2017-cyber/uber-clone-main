@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 
-const hero: ImageSourcePropType = require("../assets/images/rydo-splash.png");
+const hero: ImageSourcePropType = require("../assets/images/toro-logo.png");
 
 const LoadingScreen = () => {
   const scale = useRef(new Animated.Value(0.9)).current;
@@ -50,7 +50,7 @@ const LoadingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#04150f",
+    backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
   },

@@ -1,0 +1,14 @@
+Cambios aplicados en app/driver/premium-nav.tsx
+
+- Reduje el spam de logs:
+  - EliminAc los console.log directos en los efectos de FETCH-ROUTE-EFFECT y DISTANCE-UPDATE.
+  - FETCH-ROUTE ahora solo loguea transiciones (falta coords / skip / se agenda) usando un ref para no repetir mensajes.
+  - La distancia se loguea mA!ximo cada 5s y sin mensajes de falta de coords.
+  - Sigo programando el fetchRoute con setTimeout de 600ms cuando realmente se necesita (off-route o sin ruta).
+- AjustAc el control del ref del MapView:
+  - AAñadA- mapRefLoggedRef (useRef) para loguear una sola vez “MapView ref establecido inicialmente”.
+
+UbicaciA3n de cambios principales:
+- useEffect de verificaciA3n de ruta (alrededor de la lA3gica FETCH-ROUTE-EFFECT).
+- useEffect de actualizaciA3n de distancia al destino.
+- Callback ref del MapView (secciA3n del render).

@@ -2,6 +2,21 @@ import { neon } from "@neondatabase/serverless";
 
 const STALE_MINUTES = 120;
 
+const columnExists = async (sql: any, table: string, column: string) => {
+  try {
+    const rows = await sql`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = ${table} AND column_name = ${column}
+      LIMIT 1;
+    `;
+    return Array.isArray(rows) && rows.length > 0;
+  } catch (e) {
+    console.warn(`columnExists check failed for ${table}.${column}`, e);
+    return false;
+  }
+};
+
 const autoCancelIfStale = async (ride: any, sql: any) => {
   if (!ride) return false;
   const createdAt = ride.created_at ? new Date(ride.created_at) : null;
@@ -10,13 +25,35 @@ const autoCancelIfStale = async (ride: any, sql: any) => {
   const ageMinutes = (Date.now() - createdAt.getTime()) / 60000;
   if (ageMinutes <= STALE_MINUTES) return false;
 
-  await sql`
-    UPDATE rides
-    SET ride_status = 'cancelled',
-        cancellation_reason = 'auto-cancelled stale',
-        cancellation_fee = 0
-    WHERE ride_id = ${ride.ride_id};
-  `;
+  const hasCancellationReason = await columnExists(sql, "rides", "cancellation_reason");
+  const hasCancellationFee = await columnExists(sql, "rides", "cancellation_fee");
+
+  // Use separate queries based on available columns
+  if (hasCancellationReason && hasCancellationFee) {
+    await sql`
+      UPDATE rides
+      SET ride_status = 'cancelled', cancellation_reason = 'auto-cancelled stale', cancellation_fee = 0
+      WHERE ride_id = ${ride.ride_id};
+    `;
+  } else if (hasCancellationReason) {
+    await sql`
+      UPDATE rides
+      SET ride_status = 'cancelled', cancellation_reason = 'auto-cancelled stale'
+      WHERE ride_id = ${ride.ride_id};
+    `;
+  } else if (hasCancellationFee) {
+    await sql`
+      UPDATE rides
+      SET ride_status = 'cancelled', cancellation_fee = 0
+      WHERE ride_id = ${ride.ride_id};
+    `;
+  } else {
+    await sql`
+      UPDATE rides
+      SET ride_status = 'cancelled'
+      WHERE ride_id = ${ride.ride_id};
+    `;
+  }
   return true;
 };
 

@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 
-// GET - Get messages for a ride
+// GET - Get messages for a ride (includes trip metadata for records)
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 
     const sql = neon(`${process.env.DATABASE_URL}`);
 
+    // Get messages with sender names
     const messages = await sql`
       SELECT
         m.id,
@@ -32,7 +33,31 @@ export async function GET(request: Request) {
       ORDER BY m.created_at ASC;
     `;
 
-    return Response.json({ data: messages }, { status: 200 });
+    // Get trip metadata for record-keeping
+    const tripInfo = await sql`
+      SELECT
+        r.ride_id,
+        r.ride_status,
+        r.origin_address,
+        r.destination_address,
+        r.fare_price,
+        r.ride_time,
+        r.miles_traveled,
+        r.created_at as trip_created_at,
+        r.started_at as trip_started_at,
+        u.name as user_name,
+        CONCAT(d.first_name, ' ', d.last_name) as driver_name
+      FROM rides r
+      LEFT JOIN users u ON r.user_id = u.id
+      LEFT JOIN drivers d ON r.driver_id = d.id
+      WHERE r.ride_id = ${ride_id}
+      LIMIT 1;
+    `;
+
+    return Response.json({
+      data: messages,
+      trip_info: tripInfo[0] || null,
+    }, { status: 200 });
   } catch (error) {
     console.error("Error fetching messages:", error);
     const errorMsg = error instanceof Error ? error.message : String(error);

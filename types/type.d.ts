@@ -37,6 +37,7 @@ declare interface MarkerData {
     longitude: number | null;
     id: number;
     title: string;
+    dynamic?: boolean;
     profile_image_url?: string;
     car_image_url?: string;
     car_seats: number;

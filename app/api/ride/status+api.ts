@@ -58,6 +58,8 @@ export async function GET(request: Request) {
         r.payment_status,
         r.ride_status,
         r.created_at,
+        ds.latitude AS driver_latitude,
+        ds.longitude AS driver_longitude,
         json_build_object(
           'id', d.id,
           'first_name', d.first_name,
@@ -78,6 +80,7 @@ export async function GET(request: Request) {
         ) AS user
       FROM rides r
       LEFT JOIN drivers d ON r.driver_id = d.id
+      LEFT JOIN driver_status ds ON ds.driver_id = d.id
       LEFT JOIN users u ON r.user_id = u.id
       WHERE r.ride_id = ${rideId}
       LIMIT 1;

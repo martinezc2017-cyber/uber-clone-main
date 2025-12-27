@@ -84,65 +84,20 @@ async function getRateCard(sql: any) {
   }
 }
 
-// Calculate cancellation fee based on ride status and miles traveled
+// Calculate cancellation fee (flat $5)
 function calculateCancellationFee(
   ride: any,
   milesTraveled: number,
   rateCard: { baseFare: number; serviceFee: number; costPerMile: number; costPerMinute: number },
 ): CancellationResult {
-  const rideStatus = ride.ride_status;
-  const wasStarted = ride.started_at !== null;
-  const now = new Date();
-  const startTs = ride.started_at ? new Date(ride.started_at) : null;
-  const createdTs = ride.created_at ? new Date(ride.created_at) : now;
-  const elapsedMs = startTs ? Math.max(0, now.getTime() - startTs.getTime()) : Math.max(0, now.getTime() - createdTs.getTime());
-  const minutesElapsed = elapsedMs / 60000;
+  const baseFee = CANCELLATION_BASE_FEE; // $5.00
 
-  // distance/time charges
-  const distanceFee = Math.round(Math.max(0, milesTraveled) * rateCard.costPerMile * 100); // cents
-  const timeFee = Math.round(Math.max(0, minutesElapsed) * rateCard.costPerMinute * 100); // cents
-  const baseFee = CANCELLATION_BASE_FEE;
-
-  // If ride is pending or accepted/active pero sin haber iniciado (started_at null) -> solo base
-  if (
-    rideStatus === "pending" ||
-    rideStatus === null ||
-    ((rideStatus === "accepted" || rideStatus === "active") && !wasStarted)
-  ) {
-    const cancellationFee = baseFee;
-    return {
-      cancellationFee,
-      milesTraveled: 0,
-      minutesElapsed: 0,
-      rideWasStarted: false,
-      message: `Cargo por cancelación: $${(cancellationFee / 100).toFixed(2)} (cancelación anticipada)`,
-    };
-  }
-
-  // If ride was started/in progress - charge distancia + tiempo + base
-  if (wasStarted || rideStatus === "in_progress") {
-    const distanceCharge = Math.round(Math.max(0, milesTraveled) * rateCard.costPerMile * 100);
-    const timeCharge = Math.round(Math.max(0, minutesElapsed) * rateCard.costPerMinute * 100);
-    const cancellationFee = baseFee + distanceCharge + timeCharge;
-
-    return {
-      cancellationFee,
-      milesTraveled,
-      minutesElapsed,
-      rideWasStarted: true,
-      message: `Cargo por cancelación: $${(cancellationFee / 100).toFixed(2)} (base $${(baseFee / 100).toFixed(2)} + ${milesTraveled.toFixed(
-        1,
-      )} mi + ${minutesElapsed.toFixed(1)} min)`,
-    };
-  }
-
-  // Default fallback
   return {
-    cancellationFee: 0,
-    milesTraveled: 0,
+    cancellationFee: baseFee,
+    milesTraveled,
     minutesElapsed: 0,
-    rideWasStarted: false,
-    message: "Viaje cancelado",
+    rideWasStarted: ride.started_at !== null,
+    message: `Cargo por cancelación: $${(baseFee / 100).toFixed(2)}`,
   };
 }
 

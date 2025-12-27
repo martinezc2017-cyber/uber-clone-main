@@ -1,5 +1,25 @@
 import '../global.css';
 import 'react-native-reanimated';
+import * as Sentry from '@sentry/react-native';
+
+// Initialize Sentry for error tracking
+if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  const sentryDebug = process.env.EXPO_PUBLIC_SENTRY_DEBUG === 'true';
+
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    // Keep Sentry logger quiet unless explicitly enabled via EXPO_PUBLIC_SENTRY_DEBUG
+    debug: sentryDebug,
+    environment: __DEV__ ? 'development' : 'production',
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2, // 100% in dev, 20% in prod
+    enableAutoSessionTracking: true,
+  });
+}
+
+if (__DEV__) {
+  require('../ReactotronConfig');
+}
+
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
@@ -7,7 +27,8 @@ import { LogBox } from 'react-native';
 import { BackHandler } from 'react-native';
 import { tokenCache } from '@/lib/auth';
 import * as SplashScreen from 'expo-splash-screen';
-import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo'
+import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo';
+import ThemeProvider from '@/components/ThemeProvider';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -23,7 +44,7 @@ const ensureBackHandlerRemove = () => {
   }
 };
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, fontError] = useFonts({
     "Jakarta-Bold": require("../assets/fonts/PlusJakartaSans-Bold.ttf"),
     "Jakarta-ExtraBold": require("../assets/fonts/PlusJakartaSans-ExtraBold.ttf"),
@@ -58,14 +79,19 @@ if (fontError) {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoaded>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(root)" options={{ headerShown: false }} />
-        <Stack.Screen name="driver" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-        </ClerkLoaded>
-      </ClerkProvider>
-      );
+        <ThemeProvider>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(root)" options={{ headerShown: false }} />
+            <Stack.Screen name="driver" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+        </ThemeProvider>
+      </ClerkLoaded>
+    </ClerkProvider>
+  );
 }
+
+// Wrap with Sentry for error boundary and performance monitoring
+export default Sentry.wrap(RootLayout);

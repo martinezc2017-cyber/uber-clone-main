@@ -1,14 +1,19 @@
 import { icons } from "@/constants";
 import { useFetch } from "@/lib/fetch";
-import { calculateDriverTimes, calculateRegion, generateMarkersFromData } from "@/lib/map";
+import { calculateDriverTimes, calculateRegion, generateMarkersFromData, calculateBearing } from "@/lib/map";
 import { useDriverStore, useLocationStore } from "@/store";
 import { Driver, MarkerData } from "@/types/type";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import DriverCarMarker from "./DriverCarMarker";
 
 
-const Map = () => {
+type MapProps = {
+    showDestination?: boolean;
+};
+
+const Map = ({ showDestination = true }: MapProps) => {
     const { data: drivers, loading, error } = useFetch<Driver[]>("/(api)/driver")
      const {
         userLongitude,
@@ -22,20 +27,27 @@ const Map = () => {
         const [directionsError, setDirectionsError] = useState<string | null>(null);
         const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMin: number } | null>(null);
         const orsApiKey = process.env.EXPO_PUBLIC_OPENROUTE_API_KEY;
+        const mapRef = useRef<MapView>(null);
 
-    console.log("Map component - userLatitude:", userLatitude, "userLongitude:", userLongitude);
-    console.log("Map component - destinationLatitude:", destinationLatitude, "destinationLongitude:", destinationLongitude);
-    console.log("Map component - drivers:", drivers?.length, "loading:", loading, "error:", error, "orsKey?", !!orsApiKey);
+    const destLat = showDestination ? destinationLatitude : null;
+    const destLng = showDestination ? destinationLongitude : null;
+    const deg2rad = Math.PI / 180;
+    const metersToLat = (m: number) => m / 111_000;
+    const metersToLng = (m: number, lat: number) => m / (111_000 * Math.cos((lat || 0) * deg2rad || 1));
 
     const region = calculateRegion({
         userLatitude,
         userLongitude,
-        destinationLatitude,
-        destinationLongitude,
+        destinationLatitude: destLat,
+        destinationLongitude: destLng,
     });
 
-    console.log("Map component - region:", region);
-    console.log("Map component - Has destination?", !!destinationLatitude && !!destinationLongitude);
+    // Animar automáticamente cuando cambien las coordenadas
+    useEffect(() => {
+        if (mapRef.current && region) {
+            mapRef.current.animateToRegion(region, 1000); // Animar en 1 segundo
+        }
+    }, [userLatitude, userLongitude, destLat, destLng]);
 
     useEffect(() => {
         
@@ -53,19 +65,21 @@ const Map = () => {
     }, [drivers, userLatitude, userLongitude]) 
 
     useEffect (() => {
-        if (markers.length > 0 && destinationLatitude  && destinationLongitude )
+        if (!showDestination) return;
+
+        if (markers.length > 0 && destLat  && destLng )
             {
             calculateDriverTimes({
                 markers,
                 userLatitude,
                 userLongitude,
-                destinationLatitude,
-                destinationLongitude
+                destinationLatitude: destLat,
+                destinationLongitude: destLng
             }).then((driver) => {
                 setDrivers(driver as MarkerData[]);
             });
         }
-    }, [markers, destinationLatitude, destinationLongitude]);
+    }, [markers, destLat, destLng, showDestination]);
 
     useEffect(() => {
         const fetchFromOsrm = async (baseUrl: string) => {
@@ -99,8 +113,9 @@ const Map = () => {
             if (
                 !userLatitude ||
                 !userLongitude ||
-                !destinationLatitude ||
-                !destinationLongitude
+                !destLat ||
+                !destLng ||
+                !showDestination
             ) {
                 setRouteCoordinates([]);
                 return;
@@ -113,7 +128,7 @@ const Map = () => {
                 setDirectionsError(null);
                 return;
             } catch (primaryErr) {
-                console.warn("OSRM primario fallo", primaryErr?.message || primaryErr);
+                console.warn("OSRM primario fallo", (primaryErr as Error)?.message || primaryErr);
             }
 
             try {
@@ -123,13 +138,13 @@ const Map = () => {
                 setDirectionsError(null);
                 return;
             } catch (backupErr) {
-                console.warn("OSRM backup fallo", backupErr?.message || backupErr);
+                console.warn("OSRM backup fallo", (backupErr as Error)?.message || backupErr);
             }
 
             // Try OpenRouteService (needs key)
             if (orsApiKey) {
                 try {
-                    const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${orsApiKey}&start=${userLongitude},${userLatitude}&end=${destinationLongitude},${destinationLatitude}`;
+                    const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${orsApiKey}&start=${userLongitude},${userLatitude}&end=${destLng},${destLat}`;
                     const res = await fetch(orsUrl);
                     if (!res.ok) {
                         const body = await res.text();
@@ -158,21 +173,42 @@ const Map = () => {
             // Fallback: straight line + error
             setRouteCoordinates([
                 { latitude: userLatitude, longitude: userLongitude },
-                { latitude: destinationLatitude, longitude: destinationLongitude },
+                { latitude: destLat, longitude: destLng },
             ]);
             setRouteInfo(null);
             setDirectionsError("No se pudo obtener la ruta (OSRM/ORS)");
         };
 
-        if (destinationLatitude && destinationLongitude) {
+        if (destLat && destLng && showDestination) {
             fetchRoute();
         } else {
             setRouteCoordinates([]);
         }
-    }, [destinationLatitude, destinationLongitude, userLatitude, userLongitude]);
+    }, [destLat, destLng, userLatitude, userLongitude, showDestination]);
 
-    if (loading || !userLatitude || !userLongitude){
-        console.log("Map - showing loading spinner");
+    // Movimiento automático suave para marcadores simulados (sin coords reales)
+    useEffect(() => {
+        const id = setInterval(() => {
+            setMarkers((prev) =>
+                prev.map((m, idx) => {
+                    if (!m.dynamic || m.latitude == null || m.longitude == null) return m;
+                    const driftMeters = 20 + Math.random() * 30; // 20-50 m
+                    const angle = ((Date.now() / 1000) * 25 + idx * 47) % 360; // variación por marcador
+                    const latOffset = metersToLat(driftMeters * Math.cos(angle * deg2rad));
+                    const lngOffset = metersToLng(driftMeters * Math.sin(angle * deg2rad), m.latitude);
+                    return {
+                        ...m,
+                        latitude: m.latitude + latOffset,
+                        longitude: m.longitude + lngOffset,
+                    };
+                })
+            );
+        }, 4200);
+
+        return () => clearInterval(id);
+    }, []);
+
+    if (!userLatitude || !userLongitude){
         return (
             <View className="flex justify-between items-center w-full" >
                 <ActivityIndicator size="small" color="#000" />
@@ -181,7 +217,6 @@ const Map = () => {
         }
 
         if(error) {
-            console.log("Map - showing error:", error);
             return (
             <View className="flex justify-between items-center w-full" >
                 <Text>Error: {error}</Text>
@@ -189,18 +224,32 @@ const Map = () => {
             )
         }
 
-    console.log("Map - rendering MapView");
     return (
     <>
         <MapView
+            ref={mapRef}
             style={{ width: '100%', height: '100%', borderRadius: 16 }}
             initialRegion={region}
             provider={PROVIDER_GOOGLE}
             showsUserLocation={true}
-            showsTraffic
+            customMapStyle={[]}
         >
             {markers.map((marker) => {
                 if (marker.latitude == null || marker.longitude == null) return null;
+                
+                // Calcular el ángulo del carro hacia la ubicación del usuario
+                let carRotation = 0;
+                if (userLatitude && userLongitude) {
+                    const bearing = calculateBearing(
+                        marker.latitude,
+                        marker.longitude,
+                        userLatitude,
+                        userLongitude
+                    );
+                    // Ajustar el ángulo para que el carro apunte correctamente
+                    // El icono del carro por defecto apunta hacia arriba (0°)
+                    carRotation = bearing;
+                }
 
                 return (
                     <Marker
@@ -210,53 +259,37 @@ const Map = () => {
                             longitude: marker.longitude,
                         }}
                         title={marker.title}
-                        image={
-                            selectedDriver === marker.id ? icons.selectedMarker : icons.marker
-                        }
-                    />
+                        flat={true}
+                        anchor={{ x: 0.5, y: 0.5 }}
+                    >
+                        <DriverCarMarker
+                            size={44}
+                            selected={selectedDriver === marker.id}
+                            rotation={carRotation}
+                        />
+                    </Marker>
                 );
             })}
 
-            {destinationLatitude && destinationLongitude && (
+            {showDestination && destLat && destLng && (
                 <>
                 <Marker
                     key="destination"
                     coordinate={{
-                        latitude: destinationLatitude,
-                        longitude: destinationLongitude
+                        latitude: destLat,
+                        longitude: destLng
                     }}
                     title="Destination"
                     image={icons.pin}
                     />
 
-                    {routeCoordinates.length > 0 && (
-                        <Polyline
-                            coordinates={routeCoordinates}
-                            strokeColor="#0286ff"
-                            strokeWidth={4}
-                        />
-                    )}
+                    {/* Sin polyline de ruta */}
                 </>
             )}
         </MapView>
-        {(routeInfo || directionsError) && (
-            <View className="absolute bottom-2 left-2 right-2 bg-white rounded-md p-2 shadow-sm shadow-neutral-400 flex-row justify-between">
-                {routeInfo ? (
-                    <>
-                        <Text className="text-xs text-gray-800">
-                            {routeInfo.distanceKm.toFixed(1)} km · {Math.round(routeInfo.durationMin)} min
-                        </Text>
-                        <Text className="text-xs text-gray-600">Tráfico: Google/OSM</Text>
-                    </>
-                ) : (
-                    <Text className="text-xs text-red-500">
-                        {directionsError}
-                    </Text>
-                )}
-            </View>
-        )}
     </>
     )
 }
 
 export default Map;
+

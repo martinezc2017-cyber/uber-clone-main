@@ -11,6 +11,8 @@ export type PricingContext = {
   now?: Date;
   availableDrivers?: number;
   surgeMultiplierOverride?: number;
+  inTrip?: boolean;
+  actualDurationMinutes?: number;
 };
 
 export type FareBreakdown = {
@@ -52,11 +54,11 @@ const clamp = (value: number, min: number, max: number) =>
 export const MIN_FARE_FLOOR = 9;
 
 export const DEFAULT_RATE_CARD: RateCard = {
-  // Universal pricing: calibrated to ~$279 for Mesa → Flagstaff (~160 mi)
-  baseFare: 2.5,
-  serviceFee: 2.75,
-  costPerMile: 1.86,
-  costPerMinute: 0.15,
+  // Universal pricing
+  baseFare: 2.0,
+  serviceFee: 2.5,
+  costPerMile: 1.3,
+  costPerMinute: 0.25,
   minFare: MIN_FARE_FLOOR,
   commissionRate: 0.25, // 75% for driver (city trips)
 };
@@ -65,8 +67,48 @@ export const DEFAULT_RATE_CARD: RateCard = {
 const PRIORITY_UPLIFT = 1; // sin multiplicador extra
 
 const getTimeBasedMultipliers = (date: Date) => {
-  // Simplified: No surge pricing, no traffic multipliers
-  // Universal $1.86/mile pricing
+  const hour = date.getHours();
+  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+  const isWeekend = day === 0 || day === 6;
+
+  // Weekends: normal rate
+  if (isWeekend) {
+    return {
+      surgeMultiplier: 1.0,
+      trafficMultiplier: 1.0,
+      surgeLabel: "Standard"
+    };
+  }
+
+  // Weekdays with time-based pricing (-5% below market)
+  // Morning rush: 7-9am (+19%)
+  if (hour >= 7 && hour < 9) {
+    return {
+      surgeMultiplier: 1.19,
+      trafficMultiplier: 1.10,
+      surgeLabel: "Morning Rush"
+    };
+  }
+
+  // Evening rush: 4-7pm (+24%)
+  if (hour >= 16 && hour < 19) {
+    return {
+      surgeMultiplier: 1.24,
+      trafficMultiplier: 1.15,
+      surgeLabel: "Evening Rush"
+    };
+  }
+
+  // Late night: 12am-5am (+15%)
+  if (hour >= 0 && hour < 5) {
+    return {
+      surgeMultiplier: 1.15,
+      trafficMultiplier: 1.0,
+      surgeLabel: "Late Night"
+    };
+  }
+
+  // Normal hours
   return {
     surgeMultiplier: 1.0,
     trafficMultiplier: 1.0,
@@ -134,6 +176,8 @@ export const computeFare = ({
     override == null ? surgeLabel : `Admin surge x${surgeMultiplier}`;
 
   const estimatedDurationMinutes = durationMinutes * trafficMultiplier;
+  const actualDurationMinutes = context?.actualDurationMinutes ?? estimatedDurationMinutes;
+  const inTrip = context?.inTrip ?? false;
 
   const baseFare = rateCard.baseFare;
   const serviceFee = rateCard.serviceFee;
@@ -141,7 +185,8 @@ export const computeFare = ({
   const costPerMinute = rateCard.costPerMinute;
 
   const distanceFare = distanceMiles * costPerMile;
-  const timeFare = estimatedDurationMinutes * costPerMinute;
+  const overrunMinutes = Math.max(0, actualDurationMinutes - estimatedDurationMinutes);
+  const timeFare = estimatedDurationMinutes * costPerMinute + (inTrip ? overrunMinutes * 0.4 : 0);
   const subtotal = baseFare + distanceFare + timeFare;
 
   const surgeAmount = subtotal * (surgeMultiplier - 1);

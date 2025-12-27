@@ -6,12 +6,19 @@ import { Link, useRouter} from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Image, ScrollView, Text, View } from "react-native";
 import { useSignIn } from '@clerk/clerk-expo'
+import Screen from "@/components/layout/Screen";
+import { useGlassStyle } from "@/components/layout/GlassCard";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 
 
 const SignIn = ()  => {
     const { signIn, setActive, isLoaded } = useSignIn()
     const router = useRouter()
+    const { activeTheme } = useThemeStore();
+    const colors = themeColors[activeTheme];
+    const glassStyle = useGlassStyle();
+
     const [form, setform] = useState({
         email:'',
         password:'',
@@ -21,13 +28,13 @@ const SignIn = ()  => {
         if (!isLoaded) {
           return
         }
-    
+
         try {
           const signInAttempt = await signIn.create({
             identifier: form.email,
             password: form.password,
           })
-    
+
           if (signInAttempt.status === 'complete') {
             await setActive({ session: signInAttempt.createdSessionId })
             router.replace('/')
@@ -44,50 +51,65 @@ const SignIn = ()  => {
       }, [isLoaded, form.email, form.password])
 
     return(
-        <ScrollView className="flex-1 bg-white">
-            <View className="flex-1 bg-white">
-                <View className="relative w-full h-[250px]">
-                    <Image 
-                        source={images.signUpCar} className="z-0 w-full h-[250px]"/>
-                        <Text className="text-2xl text-black font-JakartaSemiBold absolute bottom-5 left-5">Welcome 👋</Text>
+        <Screen>
+        <ScrollView className="flex-1" style={{ backgroundColor: colors.bg }}>
+            <View className="flex-1">
+                <View style={{ position: "relative", width: "100%", height: 250 }}>
+                    <Image
+                        source={images.signUpCar}
+                        style={{ width: "100%", height: 250 }}
+                    />
+                    <View style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 80,
+                        backgroundColor: colors.bg,
+                        opacity: 0.9,
+                    }} />
+                    <Text style={{ color: colors.text, fontSize: 24, position: "absolute", bottom: 20, left: 20 }} className="font-JakartaSemiBold">Welcome</Text>
                 </View>
-                <View className="p-5">
-                    <InputField 
-                        label="Email"
-                        placeholder="Enter Your Email"
-                        icon={icons.email}
-                        value={form.email}
-                        onChangeText={(value) => setform({ ...form, email: value })}
-                    />
-                    <InputField 
-                        label="Password"
-                        placeholder="Enter Your Password"
-                        icon={icons.lock}
-                        secureTextEntry={true}
-                        value={form.password}
-                        onChangeText={(value) => setform({ ...form, password: value })}
-                    />
+                <View style={{ padding: 20 }}>
+                    <View style={[glassStyle, { marginBottom: 20 }]}>
+                        <InputField
+                            label="Email"
+                            placeholder="Enter Your Email"
+                            icon={icons.email}
+                            value={form.email}
+                            onChangeText={(value) => setform({ ...form, email: value })}
+                        />
+                        <InputField
+                            label="Password"
+                            placeholder="Enter Your Password"
+                            icon={icons.lock}
+                            secureTextEntry={true}
+                            value={form.password}
+                            onChangeText={(value) => setform({ ...form, password: value })}
+                        />
+                    </View>
 
-                    <CustomButton 
-                    title="Sign In" 
-                    onPress={onSignInPress} 
-                    className="mt-6" 
+                    <CustomButton
+                    title="Sign In"
+                    onPress={onSignInPress}
+                    className="mt-2"
                     />
 
                     <OAut />
 
-                    <Link 
+                    <Link
                     href="/(auth)/sign-up"
-                    className="text-lg text-center text-general-200 mt-10"
+                    style={{ marginTop: 40, textAlign: "center" }}
                     >
-                        <Text>Don't have an account?{" "}</Text>
-                        <Text className="text-primary-500">Sign Up</Text>
+                        <Text style={{ color: colors.muted, fontSize: 16 }}>Don't have an account?{" "}</Text>
+                        <Text style={{ color: colors.accent, fontSize: 16 }}>Sign Up</Text>
                     </Link>
                 </View>
 
                 {/* Verification modal */}
             </View>
         </ScrollView>
+        </Screen>
     );
 };
 

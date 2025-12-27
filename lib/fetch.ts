@@ -2,39 +2,47 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useState, useEffect, useCallback } from "react";
 
-const normalizeBaseUrl = (url: string) => {
-  if (!url) return url;
-
-  // On Android emulator, localhost must be rewritten to host loopback
-  if (Platform.OS === "android") {
-    if (url.includes("localhost")) return url.replace("localhost", "10.0.2.2");
-    if (url.includes("127.0.0.1")) return url.replace("127.0.0.1", "10.0.2.2");
-  }
-
-  return url;
-};
-
 const getBaseUrl = () => {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (apiUrl) return normalizeBaseUrl(apiUrl.replace(/\/$/, ""));
-
+  // First, try to get the host from Expo's hostUri (works for both LAN and tunnel)
   const hostUri = Constants.expoConfig?.hostUri;
-  if (!hostUri) return "";
 
-  // hostUri examples:
-  // - LAN: 192.168.0.10:8081
-  // - Tunnel: dbttmha-martinezc2017-8081.exp.direct
-  const cleanedHost = hostUri.replace(/^(https?:\/\/|exp:\/\/)/, "");
-  const [host, port] = cleanedHost.split(":");
+  if (hostUri) {
+    // hostUri examples:
+    // - LAN: 192.168.0.10:8081
+    // - Tunnel: dbttmha-martinezc2017-8081.exp.direct
+    const cleanedHost = hostUri.replace(/^(https?:\/\/|exp:\/\/)/, "");
+    const [host, port] = cleanedHost.split(":");
 
-  if (!host) return "";
-
-  // When using Expo tunnel (exp.direct / exp.host) use https (no port)
-  if (/\.exp\.(direct|host)$/.test(host)) {
-    return `https://${host}`;
+    if (host) {
+      // When using Expo tunnel (exp.direct / exp.host) use https (no port)
+      if (/\.exp\.(direct|host)$/.test(host)) {
+        return `https://${host}`;
+      }
+      // Use the LAN IP from Expo - works for both iOS and Android
+      return `http://${host}${port ? `:${port}` : ""}`;
+    }
   }
 
-  return `http://${host}${port ? `:${port}` : ""}`;
+  // Web fallback: same origin as the current page
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  // Fallback: use EXPO_PUBLIC_API_URL from .env
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (apiUrl) {
+    let url = apiUrl.replace(/\/$/, "");
+
+    // On Android emulator, localhost must be rewritten to host loopback
+    if (Platform.OS === "android") {
+      if (url.includes("localhost")) url = url.replace("localhost", "10.0.2.2");
+      if (url.includes("127.0.0.1")) url = url.replace("127.0.0.1", "10.0.2.2");
+    }
+
+    return url;
+  }
+
+  return "";
 };
 
 export const fetchAPI = async (url: string, options?: RequestInit) => {

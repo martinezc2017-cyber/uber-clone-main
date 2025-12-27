@@ -10,6 +10,7 @@ export default function DriverNavigation() {
   const params = useLocalSearchParams();
   const [chatVisible, setChatVisible] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [cancelNotified, setCancelNotified] = useState(false);
 
   const ride = {
     ride_id: Number(params.ride_id),
@@ -46,6 +47,33 @@ export default function DriverNavigation() {
     const interval = setInterval(checkUnread, 5000);
     return () => clearInterval(interval);
   }, [ride.ride_id]);
+
+  // Poll ride status to detect user cancellation and exit navigation
+  useEffect(() => {
+    if (!ride.ride_id) return;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetchAPI(`/api/ride/status?ride_id=${ride.ride_id}`);
+        const status = res?.data?.ride_status;
+        if (status === "cancelled" && !cancelNotified) {
+          setCancelNotified(true);
+          setChatVisible(false);
+          Alert.alert(
+            "Viaje cancelado",
+            "El pasajero canceló el viaje. Volviendo al panel.",
+            [{ text: "OK", onPress: () => router.replace("/driver") }],
+          );
+        }
+      } catch (err) {
+        // silent fail
+      }
+    };
+
+    pollStatus();
+    const timer = setInterval(pollStatus, 5000);
+    return () => clearInterval(timer);
+  }, [ride.ride_id, cancelNotified, router]);
 
   const handleArrivedNotify = async () => {
     try {

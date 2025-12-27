@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  TORO Design System
+  Low-contrast premium palette.
+  Dark mode is controlled by adding class="dark" on the root element (web).
+*/
+
+:root {
+  --toro-bg: #F4F2EE;
+  --toro-surface: #FFFFFF;
+  --toro-border: #E4E0D9;
+  --toro-text: #141414;
+  --toro-muted: #5F6672;
+  --toro-accent: #8B6A3F;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --toro-bg: #0B0D10;
+    --toro-surface: #12161C;
+    --toro-border: #232A33;
+    --toro-text: #E7E9EE;
+    --toro-muted: #A6ADBB;
+    --toro-accent: #9B7A4A;
+  }
+}
+
+.dark {
+  --toro-bg: #0B0D10;
+  --toro-surface: #12161C;
+  --toro-border: #232A33;
+  --toro-text: #E7E9EE;
+  --toro-muted: #A6ADBB;
+  --toro-accent: #9B7A4A;
+}
+
+html, body {
+  background: var(--toro-bg);
+  color: var(--toro-text);
+}

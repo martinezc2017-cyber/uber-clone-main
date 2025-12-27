@@ -1,7 +1,7 @@
 {
   "expo": {
-      "name": "Nextryde",
-    "slug": "nextryde",
+    "name": "Toro",
+    "slug": "toro-rideshare",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,14 +9,14 @@
     "sdkVersion": "54.0.0",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#2f80ed"
+      "image": "./assets/images/backgrounds/dark-gradient.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#000000"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
       "package": "com.arushsingh03.nextryde",
       "permissions": [
@@ -48,6 +48,12 @@
         "expo-router",
         {
           "origin": "https://nextryde.com/"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/"
         }
       ]
     ],

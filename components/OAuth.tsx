@@ -1,3 +1,8 @@
+/**
+ * OAuth - Google sign-in component with premium styling
+ * TORO Design System
+ */
+
 import { useOAuth } from "@clerk/clerk-expo";
 import { router } from "expo-router";
 import { Alert, Image, Text, View } from "react-native";
@@ -5,9 +10,12 @@ import { Alert, Image, Text, View } from "react-native";
 import CustomButton from "@/components/CustomButton";
 import { icons } from "@/constants";
 import { googleOAuth } from "@/lib/auth";
+import { useThemeStore, themeColors } from "@/store/themeStore";
 
 const OAuth = () => {
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  const { activeTheme } = useThemeStore();
+  const colors = themeColors[activeTheme];
 
   const handleGoogleSignIn = async () => {
     const result = await googleOAuth(startOAuthFlow);
@@ -26,9 +34,9 @@ const OAuth = () => {
   return (
     <View>
       <View className="flex flex-row justify-center items-center mt-4 gap-x-3">
-        <View className="flex-1 h-[1px] bg-general-100" />
-        <Text className="text-lg">Or</Text>
-        <View className="flex-1 h-[1px] bg-general-100" />
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        <Text style={{ color: colors.muted, fontSize: 14 }}>Or</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
       </View>
 
       <CustomButton

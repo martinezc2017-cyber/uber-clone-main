@@ -1,25 +1,37 @@
 // @ts-nocheck
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, View, Text, Pressable, ActivityIndicator, Image, StyleSheet } from "react-native";
+import { ScrollView, View, Text, Pressable, ActivityIndicator, Image, StyleSheet, Linking, Alert } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 
 import { useFetch, fetchAPI } from "@/lib/fetch";
 import { Driver } from "@/types/type";
-import { icons } from "@/constants";
+import { icons, images } from "@/constants";
+import DriverCarMarker from "@/components/DriverCarMarker";
+
+const driverColors = {
+  bg: "#F4F2EE",
+  surface: "#FFFFFF",
+  border: "#E4E0D9",
+  text: "#141414",
+  muted: "#5F6672",
+  accent: "#8B6A3F",
+  success: "#22C55E",
+  info: "#6366f1",
+};
 
 // Dark glass card style
 const glassCard = {
-  backgroundColor: "rgba(12, 15, 20, 0.85)",
-  borderColor: "rgba(255, 255, 255, 0.08)",
+  backgroundColor: driverColors.surface,
+  borderColor: driverColors.border,
   borderWidth: 1,
-  borderRadius: 22,
+  borderRadius: 18,
   shadowColor: "#000",
   shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.35,
-  shadowRadius: 18,
-  elevation: 12,
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 8,
 };
 
 type DriverStatus = {
@@ -40,6 +52,9 @@ type PendingRide = {
   fare_price: number | string | null;
   ride_time: number;
   user_name: string;
+  user_id?: number;
+  user_phone?: string | null;
+  phone_shared?: boolean; // true if user opted to share phone
   distance_to_pickup: number;
   ride_distance: number;
   estimated_pickup_time: number;
@@ -86,6 +101,10 @@ export default function DriverHome() {
   const [acceptedRide, setAcceptedRide] = useState<PendingRide | null>(null);
   const [selectedRide, setSelectedRide] = useState<PendingRide | null>(null);
   const [selectedRideRoute, setSelectedRideRoute] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [selectedRideRoadDistance, setSelectedRideRoadDistance] = useState<number | null>(null);
+  const [selectedRideRoadDuration, setSelectedRideRoadDuration] = useState<number | null>(null);
+  // Ruta OSRM del conductor al pickup cuando hay viaje aceptado
+  const [acceptedRideRoute, setAcceptedRideRoute] = useState<{ latitude: number; longitude: number }[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<number>(0);
   const [lastSentLoc, setLastSentLoc] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -297,8 +316,8 @@ export default function DriverHome() {
       ? haversineMiles(lastSentLoc.latitude, lastSentLoc.longitude, currentLocation.latitude, currentLocation.longitude)
       : Infinity;
 
-    // Throttle: 10s or 0.05 mi (~80 m)
-    if (dt < 10000 && dist < 0.05) return;
+    // Throttle: 5s o 0.01 mi (~16 m)
+    if (dt < 5000 && dist < 0.01) return;
 
     (async () => {
       try {
@@ -357,6 +376,8 @@ export default function DriverHome() {
   useEffect(() => {
     if (!selectedRide) {
       setSelectedRideRoute([]);
+      setSelectedRideRoadDistance(null);
+      setSelectedRideRoadDuration(null);
       return;
     }
 
@@ -372,11 +393,17 @@ export default function DriverHome() {
         const data = await response.json();
 
         if (data.routes && data.routes.length > 0) {
-          const coords = data.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map((coord: [number, number]) => ({
             latitude: coord[1],
             longitude: coord[0],
           }));
           setSelectedRideRoute(coords);
+          // Extract road distance (meters -> miles) and duration (seconds -> minutes)
+          const roadMiles = (route.distance ?? 0) / 1609.34;
+          const roadMinutes = Math.round((route.duration ?? 0) / 60);
+          setSelectedRideRoadDistance(roadMiles);
+          setSelectedRideRoadDuration(roadMinutes);
         }
       } catch (e) {
         console.warn("Error fetching route:", e);
@@ -385,11 +412,52 @@ export default function DriverHome() {
           { latitude: Number(selectedRide.origin_latitude), longitude: Number(selectedRide.origin_longitude) },
           { latitude: Number(selectedRide.destination_latitude), longitude: Number(selectedRide.destination_longitude) },
         ]);
+        setSelectedRideRoadDistance(null);
+        setSelectedRideRoadDuration(null);
       }
     };
 
     fetchRoute();
   }, [selectedRide]);
+
+  // Fetch route from driver to pickup when ride is accepted (OSRM real road route)
+  useEffect(() => {
+    if (!acceptedRide || !currentLocation) {
+      setAcceptedRideRoute([]);
+      return;
+    }
+
+    const fetchAcceptedRoute = async () => {
+      try {
+        const driverLng = currentLocation.longitude;
+        const driverLat = currentLocation.latitude;
+        const pickupLng = Number(acceptedRide.origin_longitude);
+        const pickupLat = Number(acceptedRide.origin_latitude);
+
+        const url = `https://router.project-osrm.org/route/v1/driving/${driverLng},${driverLat};${pickupLng},${pickupLat}?overview=full&geometries=geojson`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map((coord: [number, number]) => ({
+            latitude: coord[1],
+            longitude: coord[0],
+          }));
+          setAcceptedRideRoute(coords);
+        }
+      } catch (e) {
+        console.warn("Error fetching accepted ride route:", e);
+        // Fallback to straight line
+        setAcceptedRideRoute([
+          currentLocation,
+          { latitude: Number(acceptedRide.origin_latitude), longitude: Number(acceptedRide.origin_longitude) },
+        ]);
+      }
+    };
+
+    fetchAcceptedRoute();
+  }, [acceptedRide, currentLocation?.latitude, currentLocation?.longitude]);
 
   const handleNavigation = (path: string) => {
     if (navigating) return;
@@ -447,12 +515,12 @@ export default function DriverHome() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#0b0f14" }}
-      contentContainerStyle={{ paddingTop: 60, padding: 16, gap: 14, paddingBottom: 40 }}
+      style={{ flex: 1, backgroundColor: driverColors.bg }}
+      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, gap: 14, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
     >
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 24, fontWeight: "800", color: "#ffffff", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: driverColors.text, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
           Driver App
         </Text>
         <Pressable
@@ -462,18 +530,18 @@ export default function DriverHome() {
             width: 44,
             height: 44,
             borderRadius: 12,
-            backgroundColor: "rgba(255,255,255,0.1)",
+            backgroundColor: driverColors.surface,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.12)",
+            borderColor: driverColors.border,
             opacity: navigating ? 0.6 : 1,
           }}
         >
           <View style={{ gap: 4 }}>
-            <View style={{ width: 18, height: 2, backgroundColor: "#ffffff", borderRadius: 1 }} />
-            <View style={{ width: 18, height: 2, backgroundColor: "#ffffff", borderRadius: 1 }} />
-            <View style={{ width: 18, height: 2, backgroundColor: "#ffffff", borderRadius: 1 }} />
+            <View style={{ width: 18, height: 2, backgroundColor: driverColors.text, borderRadius: 1 }} />
+            <View style={{ width: 18, height: 2, backgroundColor: driverColors.text, borderRadius: 1 }} />
+            <View style={{ width: 18, height: 2, backgroundColor: driverColors.text, borderRadius: 1 }} />
           </View>
         </Pressable>
       </View>
@@ -492,10 +560,12 @@ export default function DriverHome() {
             width: 48,
             height: 48,
             borderRadius: 24,
-            backgroundColor: "rgba(255,255,255,0.1)",
+            backgroundColor: driverColors.surface,
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
+            borderWidth: 1,
+            borderColor: driverColors.border,
           }}
         >
           <Pressable
@@ -506,20 +576,20 @@ export default function DriverHome() {
             {driver?.profile_image_url ? (
               <Image source={{ uri: driver.profile_image_url }} style={{ width: 48, height: 48, borderRadius: 24 }} resizeMode="cover" />
             ) : (
-              <Text style={{ color: "#ffffff", fontSize: 18, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+              <Text style={{ color: driverColors.text, fontSize: 18, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
                 {driver ? driver.first_name?.[0] ?? "D" : "D"}
               </Text>
             )}
           </Pressable>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: "#ffffff", fontSize: 16, fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+          <Text style={{ color: driverColors.text, fontSize: 16, fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
             {driver ? `${driver.first_name ?? ""} ${driver.last_name ?? ""}`.trim() : "Select a driver"}
           </Text>
-          <Text style={{ color: activeStatus?.status === "online" ? "#22c55e" : "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }}>
+          <Text style={{ color: activeStatus?.status === "online" ? driverColors.success : driverColors.muted, fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }}>
             {activeStatus?.status === "online" ? "Online" : "Offline"}
           </Text>
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
+          <Text style={{ color: driverColors.muted, fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
             {vehicleLabel}
           </Text>
         </View>
@@ -530,11 +600,11 @@ export default function DriverHome() {
             paddingHorizontal: 14,
             paddingVertical: 10,
             borderRadius: 12,
-            backgroundColor: "#d9b14a",
+            backgroundColor: driverColors.accent,
             opacity: navigating ? 0.6 : 1,
           }}
         >
-          <Text style={{ color: "#1A1A1A", fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>Profile</Text>
+          <Text style={{ color: "#fff", fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>Profile</Text>
         </Pressable>
       </View>
 
@@ -546,7 +616,7 @@ export default function DriverHome() {
         }}
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: "#ffffff", fontSize: 16, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+          <Text style={{ color: driverColors.text, fontSize: 16, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
             Live map
           </Text>
           <Pressable
@@ -556,11 +626,11 @@ export default function DriverHome() {
               paddingHorizontal: 14,
               paddingVertical: 10,
               borderRadius: 12,
-              backgroundColor: activeStatus?.status === "online" ? "#ef4444" : "#d9b14a",
+              backgroundColor: activeStatus?.status === "online" ? "#ef4444" : driverColors.accent,
               opacity: updating ? 0.7 : 1,
             }}
           >
-            <Text style={{ color: activeStatus?.status === "online" ? "#fff" : "#1a1a1a", fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+            <Text style={{ color: "#fff", fontWeight: "700", fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
               {activeStatus?.status === "online" ? "Go Offline" : "Go Online"}
             </Text>
           </Pressable>
@@ -613,7 +683,9 @@ export default function DriverHome() {
             {acceptedRide ? (
               <>
                 {currentLocation && (
-                  <Marker coordinate={currentLocation} title="Tu ubicación" image={icons.selectedMarker} />
+                  <Marker coordinate={currentLocation} title="Tu ubicación">
+                    <DriverCarMarker size={44} selected />
+                  </Marker>
                 )}
                 <Marker
                   coordinate={{
@@ -625,7 +697,14 @@ export default function DriverHome() {
                   image={icons.person}
                   pinColor="#f59e0b"
                 />
-                {currentLocation && (
+                {/* Ruta OSRM del conductor al pickup - sigue las calles */}
+                {acceptedRideRoute.length > 0 ? (
+                  <Polyline
+                    coordinates={acceptedRideRoute}
+                    strokeColor="#0284c7"
+                    strokeWidth={5}
+                  />
+                ) : currentLocation && (
                   <Polyline
                     coordinates={[
                       currentLocation,
@@ -675,8 +754,9 @@ export default function DriverHome() {
                   <Marker
                     coordinate={currentLocation}
                     title="Tu ubicación"
-                    image={icons.selectedMarker}
-                  />
+                  >
+                    <DriverCarMarker size={44} selected />
+                  </Marker>
                 )}
               </>
             ) : (
@@ -690,8 +770,9 @@ export default function DriverHome() {
                     }}
                     title={`Driver ${driver.driver_id}`}
                     description={driver.status}
-                    image={driver.driver_id === selectedDriverId ? icons.selectedMarker : icons.marker}
-                  />
+                  >
+                    <DriverCarMarker size={44} selected={driver.driver_id === selectedDriverId} />
+                  </Marker>
                 ))}
 
                 {pendingRides.map((ride) => (
@@ -727,18 +808,18 @@ export default function DriverHome() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             {/* Pickup radius dial */}
             <View style={{ alignItems: "center", gap: 4 }}>
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
+              <Text style={{ color: "#334155", fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
                 Offers within
               </Text>
               <View
                 style={{
-                  width: 74,
-                  backgroundColor: "rgba(255,255,255,0.08)",
+                  width: 90,
+                  backgroundColor: "#f8fafc",
                   borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                  borderRadius: 10,
-                  paddingHorizontal: 8,
-                  paddingVertical: 6,
+                  borderColor: "#cbd5e1",
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
                   alignItems: "center",
                 }}
               >
@@ -746,23 +827,36 @@ export default function DriverHome() {
                   onPress={() => setMaxDistanceIndex((i) => (i > 0 ? i - 1 : i))}
                   style={{ paddingVertical: 4 }}
                 >
-                  <Text style={{ fontSize: 14, color: "#d9b14a" }}>▲</Text>
+                  <Text style={{ fontSize: 14, color: "#0f172a" }}>▲</Text>
                 </Pressable>
                 <View style={{ alignItems: "center", paddingVertical: 2, width: "100%" }}>
-                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, height: 14 }}>
+                  <Text style={{ color: "#475569", fontSize: 11, height: 14 }}>
                     {distanceOptions[maxDistanceIndex - 1] ? `${distanceOptions[maxDistanceIndex - 1]} mi` : " "}
                   </Text>
-                  <Text
+                  <View
                     style={{
-                      color: "#ffffff",
-                      fontSize: 16,
-                      fontFamily: "Jakarta-Bold, system-ui, sans-serif",
-                      height: 20,
+                      backgroundColor: "#e2e8f0",
+                      borderWidth: 1,
+                      borderColor: "#cbd5e1",
+                      borderRadius: 10,
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                      minWidth: 68,
+                      alignItems: "center",
                     }}
                   >
-                    {maxDistanceMiles} mi
-                  </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, height: 14 }}>
+                    <Text
+                      style={{
+                        color: "#0f172a",
+                        fontSize: 16,
+                        fontFamily: "Jakarta-Bold, system-ui, sans-serif",
+                        height: 20,
+                      }}
+                    >
+                      {maxDistanceMiles} mi
+                    </Text>
+                  </View>
+                  <Text style={{ color: "#475569", fontSize: 11, height: 14 }}>
                     {distanceOptions[maxDistanceIndex + 1] ? `${distanceOptions[maxDistanceIndex + 1]} mi` : " "}
                   </Text>
                 </View>
@@ -770,25 +864,25 @@ export default function DriverHome() {
                   onPress={() => setMaxDistanceIndex((i) => (i < distanceOptions.length - 1 ? i + 1 : i))}
                   style={{ paddingVertical: 4 }}
                 >
-                  <Text style={{ fontSize: 14, color: "#d9b14a" }}>▼</Text>
+                  <Text style={{ fontSize: 14, color: "#0f172a" }}>▼</Text>
                 </Pressable>
               </View>
             </View>
 
             {/* Trip length dial */}
             <View style={{ alignItems: "center", gap: 4 }}>
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
+              <Text style={{ color: "#334155", fontSize: 11, fontFamily: "Jakarta-Medium, system-ui, sans-serif" }}>
                 Trip up to
               </Text>
               <View
                 style={{
-                  width: 74,
-                  backgroundColor: "rgba(255,255,255,0.08)",
+                  width: 90,
+                  backgroundColor: "#f8fafc",
                   borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                  borderRadius: 10,
-                  paddingHorizontal: 8,
-                  paddingVertical: 6,
+                  borderColor: "#cbd5e1",
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
                   alignItems: "center",
                 }}
               >
@@ -796,23 +890,36 @@ export default function DriverHome() {
                   onPress={() => setMaxTripIndex((i) => (i > 0 ? i - 1 : i))}
                   style={{ paddingVertical: 4 }}
                 >
-                  <Text style={{ fontSize: 14, color: "#d9b14a" }}>▲</Text>
+                  <Text style={{ fontSize: 14, color: "#0f172a" }}>▲</Text>
                 </Pressable>
                 <View style={{ alignItems: "center", paddingVertical: 2, width: "100%" }}>
-                  <Text style={{ color: "#94a3b8", fontSize: 10, height: 14 }}>
+                  <Text style={{ color: "#475569", fontSize: 11, height: 14 }}>
                     {tripOptions[maxTripIndex - 1] ? `${tripOptions[maxTripIndex - 1]} mi` : " "}
                   </Text>
-                  <Text
+                  <View
                     style={{
-                      color: "#0f172a",
-                      fontSize: 16,
-                      fontFamily: "Jakarta-Bold, system-ui, sans-serif",
-                      height: 20,
+                      backgroundColor: "#e2e8f0",
+                      borderWidth: 1,
+                      borderColor: "#cbd5e1",
+                      borderRadius: 10,
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                      minWidth: 68,
+                      alignItems: "center",
                     }}
                   >
-                    {maxTripMiles} mi
-                  </Text>
-                  <Text style={{ color: "#94a3b8", fontSize: 10, height: 14 }}>
+                    <Text
+                      style={{
+                        color: "#0f172a",
+                        fontSize: 16,
+                        fontFamily: "Jakarta-Bold, system-ui, sans-serif",
+                        height: 20,
+                      }}
+                    >
+                      {maxTripMiles} mi
+                    </Text>
+                  </View>
+                  <Text style={{ color: "#475569", fontSize: 11, height: 14 }}>
                     {tripOptions[maxTripIndex + 1] ? `${tripOptions[maxTripIndex + 1]} mi` : " "}
                   </Text>
                 </View>
@@ -820,7 +927,7 @@ export default function DriverHome() {
                   onPress={() => setMaxTripIndex((i) => (i < tripOptions.length - 1 ? i + 1 : i))}
                   style={{ paddingVertical: 4 }}
                 >
-                  <Text style={{ fontSize: 14, color: "#d9b14a" }}>▼</Text>
+                  <Text style={{ fontSize: 14, color: "#0f172a" }}>▼</Text>
                 </Pressable>
               </View>
             </View>
@@ -839,18 +946,88 @@ export default function DriverHome() {
                 gap: 8,
               }}
             >
-              <Text style={{ color: "#0ea5e9", fontSize: 15, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
-                En ruta al cliente
-              </Text>
-              <Text style={{ color: "#0f172a", fontSize: 13, fontFamily: "Jakarta-SemiBold, system-ui, sans-serif" }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Text style={{ color: "#0ea5e9", fontSize: 15, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+                  En ruta al cliente
+                </Text>
+                <Text style={{ color: "#10b981", fontSize: 16, fontFamily: "Jakarta-Bold, system-ui, sans-serif" }}>
+                  ${calculateDriverEarnings(acceptedRide.fare_price, Number(acceptedRide.ride_distance ?? 0)).toFixed(2)}
+                </Text>
+              </View>
+              <Text style={{ color: "#0f172a", fontSize: 13, fontFamily: "Jakarta-SemiBold, system-ui, sans-serif" }} numberOfLines={1}>
                 Pickup: {acceptedRide.origin_address}
               </Text>
-              <Text style={{ color: "#475569", fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }}>
-                {Number(acceptedRide.distance_to_pickup ?? 0).toFixed(1)} mi • {acceptedRide.estimated_pickup_time} min
+              <Text style={{ color: "#6b7280", fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }} numberOfLines={1}>
+                Destino: {acceptedRide.destination_address}
               </Text>
-              <Text style={{ color: "#475569", fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }}>
-                Cliente: {acceptedRide.user_name || "Customer"}
-              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: "#f59e0b", fontSize: 13, fontFamily: "Jakarta-SemiBold, system-ui, sans-serif" }}>
+                  Viaje total: {Number(acceptedRide.ride_distance ?? 0).toFixed(1)} mi
+                </Text>
+                <Text style={{ color: "#475569", fontSize: 12, fontFamily: "Jakarta-Regular, system-ui, sans-serif" }}>
+                  {acceptedRide.user_name || "Customer"}
+                </Text>
+              </View>
+              {/* Botones de contacto */}
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                <Pressable
+                  onPress={() => {
+                    const phone = acceptedRide.user_phone;
+                    if (!acceptedRide.phone_shared || !phone) {
+                      Alert.alert(
+                        "Telefono no disponible",
+                        "El cliente no ha compartido su numero de telefono. Usa el chat interno para comunicarte."
+                      );
+                      return;
+                    }
+                    Linking.openURL(`tel:${phone}`).catch(() => {
+                      Alert.alert("Error", "No se pudo iniciar la llamada.");
+                    });
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    backgroundColor: acceptedRide.phone_shared && acceptedRide.user_phone ? "#22c55e" : "#9ca3af",
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    opacity: acceptedRide.phone_shared && acceptedRide.user_phone ? 1 : 0.7,
+                  }}
+                >
+                  <Text style={{ fontSize: 16 }}>{acceptedRide.phone_shared && acceptedRide.user_phone ? "📞" : "🔒"}</Text>
+                  <Text style={{ color: "#fff", fontFamily: "Jakarta-Bold, system-ui, sans-serif", fontSize: 13 }}>
+                    {acceptedRide.phone_shared && acceptedRide.user_phone ? "Llamar" : "Privado"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    router.push(`/driver/chat?ride_id=${acceptedRide.ride_id}&user_name=${encodeURIComponent(acceptedRide.user_name || "Cliente")}&driver_id=${selectedDriverId || 1}`);
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    backgroundColor: "#3b82f6",
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 16 }}>💬</Text>
+                  <Text style={{ color: "#fff", fontFamily: "Jakarta-Bold, system-ui, sans-serif", fontSize: 13 }}>
+                    Mensaje
+                  </Text>
+                </Pressable>
+              </View>
+              {/* Privacy note */}
+              {!acceptedRide.phone_shared && (
+                <Text style={{ color: "#6b7280", fontSize: 11, textAlign: "center", marginTop: 4 }}>
+                  🔒 El cliente no comparte telefono. Usa mensajes internos.
+                </Text>
+              )}
               <Pressable
                 onPress={async () => {
                   try {
@@ -947,9 +1124,16 @@ export default function DriverHome() {
                         fontFamily: "Jakarta-Bold, system-ui, sans-serif",
                       }}
                     >
-                      ${calculateDriverEarnings(ride.fare_price, Number(ride.ride_distance ?? 0)).toFixed(2)}
+                      ${calculateDriverEarnings(
+                        ride.fare_price,
+                        selectedRide?.ride_id === ride.ride_id && selectedRideRoadDistance !== null
+                          ? selectedRideRoadDistance
+                          : Number(ride.ride_distance ?? 0)
+                      ).toFixed(2)}
                     </Text>
-                    {Number(ride.ride_distance ?? 0) > 100 && (
+                    {(selectedRide?.ride_id === ride.ride_id && selectedRideRoadDistance !== null
+                      ? selectedRideRoadDistance > 100
+                      : Number(ride.ride_distance ?? 0) > 100) && (
                       <View
                         style={{
                           backgroundColor: "#fbbf24",
@@ -981,11 +1165,19 @@ export default function DriverHome() {
                     {ride.estimated_pickup_time ?? "--"} min to pickup
                   </Text>
                   <Text style={{ color: "#f59e0b", fontSize: 13, fontFamily: "Jakarta-SemiBold, system-ui, sans-serif" }}>
-                    Trip: {Number(ride.ride_distance ?? 0).toFixed(1)} mi{ride.ride_duration ? ` • ${Math.round(Number(ride.ride_duration))} min` : ""}
+                    Trip: {selectedRide?.ride_id === ride.ride_id && selectedRideRoadDistance !== null
+                      ? selectedRideRoadDistance.toFixed(1)
+                      : Number(ride.ride_distance ?? 0).toFixed(1)} mi
+                    {selectedRide?.ride_id === ride.ride_id && selectedRideRoadDuration !== null
+                      ? ` • ${selectedRideRoadDuration} min`
+                      : ride.ride_duration ? ` • ${Math.round(Number(ride.ride_duration))} min` : ""}
+                    {selectedRide?.ride_id === ride.ride_id && selectedRideRoadDistance !== null ? " (road)" : ""}
                   </Text>
                 </View>
 
-                {Number(ride.ride_distance ?? 0) > 100 && (
+                {(selectedRide?.ride_id === ride.ride_id && selectedRideRoadDistance !== null
+                  ? selectedRideRoadDistance > 100
+                  : Number(ride.ride_distance ?? 0) > 100) && (
                   <View
                     style={{
                       backgroundColor: "#fef3c7",

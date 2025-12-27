@@ -20,7 +20,7 @@ type LocationStoreWithHistory = LocationStore & {
 
 export const useLocationStore = create<LocationStoreWithHistory>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             userAddress: null,
             userLatitude: null,
             userLongitude: null,
@@ -53,12 +53,13 @@ export const useLocationStore = create<LocationStoreWithHistory>()(
                 }) => {
                     set((state) => {
                         // Add to history
+                        const now = Date.now();
                         const newHistoryItem: DestinationHistory = {
-                            id: Date.now().toString(),
+                            id: `${now}-${Math.random().toString(36).slice(2, 9)}`,
                             address,
                             latitude,
                             longitude,
-                            timestamp: Date.now(),
+                            timestamp: now,
                         };
 
                         // Keep only last 10 destinations, avoiding duplicates
@@ -77,12 +78,13 @@ export const useLocationStore = create<LocationStoreWithHistory>()(
             },
             addToHistory: (location) => {
                 set((state) => {
+                    const now = Date.now();
                     const newHistoryItem: DestinationHistory = {
-                        id: Date.now().toString(),
+                        id: `${now}-${Math.random().toString(36).slice(2, 9)}`,
                         address: location.address,
                         latitude: location.latitude,
                         longitude: location.longitude,
-                        timestamp: Date.now(),
+                        timestamp: now,
                     };
 
                     const filteredHistory = state.destinationHistory.filter(
@@ -109,6 +111,23 @@ export const useLocationStore = create<LocationStoreWithHistory>()(
         {
             name: "location-storage",
             storage: createJSONStorage(() => AsyncStorage),
+            // Clean up duplicate IDs on rehydration (migration for old data)
+            onRehydrateStorage: () => (state) => {
+                if (state && state.destinationHistory) {
+                    const seenIds = new Set<string>();
+                    const cleanedHistory = state.destinationHistory.filter((item) => {
+                        if (seenIds.has(item.id)) {
+                            return false; // Remove duplicate
+                        }
+                        seenIds.add(item.id);
+                        return true;
+                    });
+                    // Update state if we removed duplicates
+                    if (cleanedHistory.length !== state.destinationHistory.length) {
+                        useLocationStore.setState({ destinationHistory: cleanedHistory });
+                    }
+                }
+            },
         }
     )
 );
