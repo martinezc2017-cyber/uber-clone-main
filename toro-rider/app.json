@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "TORO",
-    "slug": "toro-rider",
+    "slug": "toro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "toro-rider",
+    "scheme": "toro",
     "sdkVersion": "54.0.0",
     "userInterfaceStyle": "automatic",
     "splash": {
