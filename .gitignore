@@ -23,6 +23,8 @@ expo-env.d.ts
 # Next.js
 .next/
 out/
+*.apk
+expo-go-latest.apk
 .env.local
 .env.*.local
 .vercel/
